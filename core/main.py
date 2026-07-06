@@ -38,7 +38,20 @@ def receber_vulnerabilidades(dados: dict):
 
     for vuln in top_10:
         try:
-            resp = requests.post(URL_GHOST, json=vuln, timeout=120)
+            # Envia com contexto ampliado (se existir)
+            payload = {
+                "id": vuln.get("id"),
+                "arquivo": vuln.get("arquivo"),
+                "linha": vuln.get("linha"),
+                "tipo": vuln.get("tipo"),
+                "severidade": vuln.get("severidade"),
+                "descricao": vuln.get("descricao"),
+                "trecho_do_codigo": vuln.get("trecho_do_codigo", ""),
+                "contexto_ampliado": vuln.get("contexto_ampliado", ""),   # Novo
+                "score": vuln.get("score", 0)
+            }
+
+            resp = requests.post(URL_GHOST, json=payload, timeout=120)
 
             # Gera exceção caso o Ghost retorne erro HTTP
             resp.raise_for_status()
@@ -49,7 +62,6 @@ def receber_vulnerabilidades(dados: dict):
                 "correcao",
                 "Correção indisponível"
             )
-
             vuln["explicacao"] = correcao.get(
                 "explicacao",
                 ""
