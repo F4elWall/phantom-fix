@@ -30,7 +30,7 @@ app.add_middleware(
 )
 
 # ── Configuração ──────────────────────────────────────────────────────────────
-SCANNER_PATH     = os.getenv("SCANNER_PATH", "../data_control/scanner.py")
+SCANNER_PATH     = os.getenv("SCANNER_PATH", "../data-control/scanner.py")
 SCANNER_PYTHON   = os.getenv("SCANNER_PYTHON", "python3")
 SCANNER_TIMEOUT  = int(os.getenv("SCANNER_TIMEOUT", "1800"))  # 30 min — scans + IA podem demorar
 
