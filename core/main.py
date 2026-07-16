@@ -36,7 +36,7 @@ SCANNER_TIMEOUT  = int(os.getenv("SCANNER_TIMEOUT", "1800"))  # 30 min — scans
 
 GHOST_URL         = os.getenv("GHOST_URL", "http://localhost:8001/corrigir")
 RESULTADO_PATH    = Path(os.getenv("RESULTADO_PATH", "resultado.json"))
-TOP_N             = int(os.getenv("TOP_N_VULNS", "10"))
+TOP_N             = int(os.getenv("TOP_N_VULNS", "0"))
 
 JOBS_DIR = Path(os.getenv("JOBS_DIR", "./jobs"))
 JOBS_DIR.mkdir(exist_ok=True)
@@ -145,7 +145,7 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
         vulnerabilidades = achados.get("vulnerabilidades", [])
         print(f"[{protocolo}] scanner.py retornou {len(vulnerabilidades)} vulnerabilidades")
 
-        top_vulns = vulnerabilidades[:TOP_N]
+        top_vulns = vulnerabilidades
 
         # ── 4. Salva versão inicial do relatório (sem correções ainda) ──────
         resultado = {
