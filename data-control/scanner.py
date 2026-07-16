@@ -20,7 +20,7 @@ from pathlib import Path
 # ── Configuração via variáveis de ambiente (herdadas do processo do Core) ────
 OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
-ZAP_TIMEOUT  = int(os.getenv("ZAP_TIMEOUT", "300"))
+ZAP_TIMEOUT  = int(os.getenv("ZAP_TIMEOUT", "3600"))
 
 # ── Argumentos ────────────────────────────────────────────────────────────────
 if len(sys.argv) < 3:
