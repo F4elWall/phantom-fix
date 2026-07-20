@@ -146,7 +146,21 @@ if url_alvo:
         alertas_resp = zap_get("/JSON/core/view/alerts/", {"baseurl": url_alvo})
         alertas      = alertas_resp.get("alerts", [])
 
+        # Deduplica por tipo — o ZAP repete o mesmo alerta para cada URL varrida,
+        # o que gera centenas de entradas idênticas. Mantemos um exemplo de cada tipo,
+        # priorizando o de maior risco quando há variação.
+        alertas_por_tipo: dict[str, dict] = {}
         for alerta in alertas:
+            tipo = alerta.get("alert", "desconhecido")
+            risco_atual = alerta.get("riskcode", 0)
+            if tipo not in alertas_por_tipo:
+                alertas_por_tipo[tipo] = alerta
+            else:
+                # Substitui se o novo tiver risco maior
+                if risco_atual > alertas_por_tipo[tipo].get("riskcode", 0):
+                    alertas_por_tipo[tipo] = alerta
+
+        for alerta in alertas_por_tipo.values():
             vulnerabilidades.append({
                 "id":               "",
                 "origem":           "zap",
@@ -160,6 +174,8 @@ if url_alvo:
                 "justificativa":    "",
             })
             contador_zap += 1
+
+        print(f"  ({len(alertas)} alertas brutos → {contador_zap} tipos únicos após deduplicação)")
 
     except requests.exceptions.ConnectionError:
         print(f"  ⚠ Não foi possível conectar ao ZAP em {ZAP_API_URL}")
