@@ -221,4 +221,7 @@ resultado.json
 
 findings.json
 
-zap_report.json
+zap_report.jsoncore/jobs/
+core/resultado_enriquecido.json
+core/resultado.json
+teste_findings.json
