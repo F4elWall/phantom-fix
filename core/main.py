@@ -1,8 +1,8 @@
 """
 PhantomFix — Core
 Recebe o .zip do cliente, extrai numa pasta temporária, aciona o scanner.py
-(Data Control) como subprocesso, aguarda o .json de achados, aciona o Ghost
-para gerar as correções, e gera o relatorio.json final para o Dashboard.
+(Data Control) como subprocesso, aguarda o findings.json, aciona o analyser.py
+(Groq) para enriquecer, aciona o Ghost para correções, e gera o relatorio.json.
 """
 
 import json
@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="PhantomFix Core", version="0.3.0")
+app = FastAPI(title="PhantomFix Core", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,18 +30,18 @@ app.add_middleware(
 )
 
 # ── Configuração ──────────────────────────────────────────────────────────────
-SCANNER_PATH     = os.getenv("SCANNER_PATH", "../data-control/scanner.py")
-SCANNER_PYTHON   = os.getenv("SCANNER_PYTHON", "python3")
-SCANNER_TIMEOUT  = int(os.getenv("SCANNER_TIMEOUT", "1800"))  # 30 min — scans + IA podem demorar
+SCANNER_PATH    = os.getenv("SCANNER_PATH",    "../data-control/scanner.py")
+ANALYSER_PATH   = os.getenv("ANALYSER_PATH",   "../analyser/analyser.py")
+SCANNER_PYTHON  = os.getenv("SCANNER_PYTHON",  "python3")
+SCANNER_TIMEOUT = int(os.getenv("SCANNER_TIMEOUT", "7200"))
 
-GHOST_URL         = os.getenv("GHOST_URL", "http://localhost:8001/corrigir")
-RESULTADO_PATH    = Path(os.getenv("RESULTADO_PATH", "resultado.json"))
-TOP_N             = int(os.getenv("TOP_N_VULNS", "0"))
+GHOST_URL      = os.getenv("GHOST_URL",      "http://localhost:8001/corrigir")
+RESULTADO_PATH = Path(os.getenv("RESULTADO_PATH", "resultado.json"))
 
 JOBS_DIR = Path(os.getenv("JOBS_DIR", "./jobs"))
 JOBS_DIR.mkdir(exist_ok=True)
 
-# ── Estado dos jobs em memória — trocar por Redis/DB em produção ─────────────
+# ── Estado dos jobs em memória ────────────────────────────────────────────────
 _status_jobs: dict[str, dict] = {}
 _ultimo_resultado: dict | None = None
 
@@ -76,7 +76,6 @@ async def receber_zip(
     protocolo = str(uuid.uuid4())[:8]
     _status_jobs[protocolo] = {"status": "recebido", "repositorio": repositorio}
 
-    # 1. Cria a pasta temporária do job e salva o .zip nela
     pasta_job = JOBS_DIR / protocolo
     pasta_job.mkdir(parents=True, exist_ok=True)
 
@@ -86,7 +85,6 @@ async def receber_zip(
 
     print(f"[{protocolo}] Recebido: {repositorio} ({len(conteudo) / 1024:.1f} KB)")
 
-    # Roda o pipeline pesado em background — responde ao cliente imediatamente
     background.add_task(pipeline_completo, protocolo, pasta_job, zip_path, repositorio)
 
     return {"status": "recebido", "protocolo": protocolo, "repositorio": repositorio}
@@ -101,11 +99,11 @@ def status_scan(protocolo: str):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PIPELINE — extrai, aciona o scanner.py, aciona o Ghost, gera relatorio.json
+# PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
 def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositorio: str):
     try:
-        # ── 1. Extrai o .zip dentro da própria pasta do job ─────────────────
+        # ── 1. Extrai o .zip ─────────────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "extraindo"
         pasta_extraida = pasta_job / "repo"
         pasta_extraida.mkdir(exist_ok=True)
@@ -119,35 +117,60 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
             _status_jobs[protocolo]["detalhe"] = "Arquivo .zip inválido ou corrompido"
             return
 
-        # ── 2. Aciona o scanner.py (Data Control) como subprocesso ─────────
+        # ── 2. Scanner (SAST + DAST) ─────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "escaneando"
-        arquivo_saida = pasta_job / "findings.json"
+        arquivo_findings = pasta_job / "findings.json"
 
         print(f"[{protocolo}] Acionando scanner.py...")
-        resultado_processo = subprocess.run(
-            [SCANNER_PYTHON, SCANNER_PATH, str(pasta_extraida), str(arquivo_saida)],
+        proc_scanner = subprocess.run(
+            [SCANNER_PYTHON, SCANNER_PATH, str(pasta_extraida), str(arquivo_findings)],
             capture_output=True, text=True, timeout=SCANNER_TIMEOUT
         )
 
-        if resultado_processo.returncode != 0:
+        print(f"[{protocolo}] --- saída do scanner.py ---")
+        print(proc_scanner.stdout)
+        if proc_scanner.stderr:
+            print(proc_scanner.stderr)
+
+        if proc_scanner.returncode != 0:
             _status_jobs[protocolo]["status"] = "erro"
-            _status_jobs[protocolo]["detalhe"] = f"scanner.py falhou: {resultado_processo.stderr[-500:]}"
-            print(f"[{protocolo}] scanner.py falhou:\n{resultado_processo.stderr}")
+            _status_jobs[protocolo]["detalhe"] = f"scanner.py falhou: {proc_scanner.stderr[-500:]}"
             return
 
-        if not arquivo_saida.exists():
+        if not arquivo_findings.exists():
             _status_jobs[protocolo]["status"] = "erro"
-            _status_jobs[protocolo]["detalhe"] = "scanner.py não gerou o arquivo de saída"
+            _status_jobs[protocolo]["detalhe"] = "scanner.py não gerou findings.json"
             return
 
-        # ── 3. Lê o .json de achados gerado pelo scanner.py ─────────────────
-        achados = json.loads(arquivo_saida.read_text(encoding="utf-8"))
+        achados = json.loads(arquivo_findings.read_text(encoding="utf-8"))
         vulnerabilidades = achados.get("vulnerabilidades", [])
         print(f"[{protocolo}] scanner.py retornou {len(vulnerabilidades)} vulnerabilidades")
 
-        top_vulns = vulnerabilidades
+        # ── 3. Analyser (Groq — enriquece com score, categoria, recomendação) ─
+        _status_jobs[protocolo]["status"] = "analisando"
+        print(f"[{protocolo}] Acionando analyser.py...")
 
-        # ── 4. Salva versão inicial do relatório (sem correções ainda) ──────
+        proc_analyser = subprocess.run(
+            [SCANNER_PYTHON, ANALYSER_PATH, str(arquivo_findings)],
+            capture_output=True, text=True, timeout=SCANNER_TIMEOUT
+        )
+
+        print(f"[{protocolo}] --- saída do analyser.py ---")
+        print(proc_analyser.stdout)
+        if proc_analyser.stderr:
+            print(proc_analyser.stderr)
+
+        # Se o analyser gerou o resultado enriquecido, usa ele
+        arquivo_enriquecido = pasta_job / "resultado_enriquecido.json"
+        if proc_analyser.returncode == 0 and arquivo_enriquecido.exists():
+            achados_finais   = json.loads(arquivo_enriquecido.read_text(encoding="utf-8"))
+            vulnerabilidades = achados_finais.get("vulnerabilidades", [])
+            print(f"[{protocolo}] Analyser enriqueceu {len(vulnerabilidades)} vulnerabilidades")
+        else:
+            print(f"[{protocolo}] ⚠ Analyser falhou — usando findings brutos do scanner")
+            achados_finais = achados
+
+        # ── 4. Salva versão inicial do relatório ─────────────────────────────
         resultado = {
             "repositorio":      repositorio,
             "analisado_em":     achados.get("analisado_em"),
@@ -155,43 +178,44 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
             "total_encontrado": achados.get("total_encontrado", len(vulnerabilidades)),
             "origem_semgrep":   achados.get("origem_semgrep", 0),
             "origem_zap":       achados.get("origem_zap", 0),
+            "analisado_por_ia": achados_finais.get("analisado_por_agente", False),
+            "modelo_ia":        achados_finais.get("modelo_ia", ""),
             "status":           "gerando_correcoes",
-            "vulnerabilidades": top_vulns,
+            "vulnerabilidades": vulnerabilidades,
         }
         salvar_resultado(resultado)
         _status_jobs[protocolo]["status"] = "priorizado"
 
-        # ── 5. Aciona o Ghost para cada vulnerabilidade selecionada ─────────
+        # ── 5. Ghost (correções) ─────────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "corrigindo"
-        print(f"[{protocolo}] Acionando o Ghost para {len(top_vulns)} vulnerabilidades...")
-        asyncio.run(processar_com_ghost(top_vulns))
+        print(f"[{protocolo}] Acionando Ghost para {len(vulnerabilidades)} vulnerabilidades...")
+        asyncio.run(processar_com_ghost(vulnerabilidades))
 
-        # ── 6. Gera o relatorio.json final ──────────────────────────────────
+        # ── 6. Relatório final ───────────────────────────────────────────────
         resultado["status"]           = "concluido"
         resultado["corrigido_em"]     = datetime.now().isoformat()
-        resultado["vulnerabilidades"] = top_vulns
+        resultado["vulnerabilidades"] = vulnerabilidades
         salvar_resultado(resultado)
 
         _status_jobs[protocolo]["status"] = "concluido"
-        print(f"[{protocolo}] Pipeline concluído. relatorio.json pronto para o Dashboard.")
+        print(f"[{protocolo}] Pipeline concluído.")
 
     except subprocess.TimeoutExpired:
         _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = f"scanner.py excedeu {SCANNER_TIMEOUT}s"
-        print(f"[{protocolo}] scanner.py excedeu o tempo limite")
+        _status_jobs[protocolo]["detalhe"] = f"Timeout após {SCANNER_TIMEOUT}s"
+        print(f"[{protocolo}] Timeout")
 
     except Exception as e:
         _status_jobs[protocolo]["status"] = "erro"
         _status_jobs[protocolo]["detalhe"] = str(e)
-        print(f"[{protocolo}] Erro no pipeline: {e}")
+        print(f"[{protocolo}] Erro: {e}")
 
     finally:
-        # ── 7. Limpeza — remove a pasta do job (zip + repo extraído) ────────
         shutil.rmtree(pasta_job, ignore_errors=True)
         print(f"[{protocolo}] Limpeza concluída")
 
 
-# ── Ghost: solicita correção para cada vulnerabilidade ───────────────────────
+# ── Ghost ─────────────────────────────────────────────────────────────────────
 async def solicitar_correcao(vuln: dict, cliente: httpx.AsyncClient) -> dict:
     payload = {
         "id":               vuln.get("id"),
@@ -202,6 +226,8 @@ async def solicitar_correcao(vuln: dict, cliente: httpx.AsyncClient) -> dict:
         "descricao":        vuln.get("descricao"),
         "trecho_do_codigo": vuln.get("trecho_do_codigo", ""),
         "score":            vuln.get("score", 0),
+        "categoria":        vuln.get("categoria", ""),
+        "recomendacao":     vuln.get("recomendacao", ""),
     }
     try:
         resp = await cliente.post(GHOST_URL, json=payload, timeout=120)
@@ -217,7 +243,6 @@ async def solicitar_correcao(vuln: dict, cliente: httpx.AsyncClient) -> dict:
 
 
 async def processar_com_ghost(vulnerabilidades: list[dict]):
-    """Envia vulnerabilidades ao Ghost em paralelo (respeitando limite de concorrência)."""
     semaforo = asyncio.Semaphore(3)
 
     async def com_semaforo(vuln, cliente):
@@ -237,7 +262,7 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/")
 def raiz():
-    return {"status": "PhantomFix Core funcionando", "versao": "0.3.0"}
+    return {"status": "PhantomFix Core funcionando", "versao": "0.4.0"}
 
 
 @app.get("/vulnerabilidades")
@@ -284,4 +309,5 @@ def status_analise():
         "repositorio":  resultado.get("repositorio"),
         "analisado_em": resultado.get("analisado_em"),
         "corrigido_em": resultado.get("corrigido_em"),
+        "modelo_ia":    resultado.get("modelo_ia", ""),
     }
