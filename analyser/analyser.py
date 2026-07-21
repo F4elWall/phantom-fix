@@ -40,15 +40,26 @@ class AnalyserAgent:
             "temperature": 0.2,
             "max_tokens":  512
         }
-        for tentativa in range(3):
+
+        for tentativa in range(5):
             try:
                 resp = requests.post(self.url, headers=headers, json=payload, timeout=60)
+
+                # Rate limit — respeita o Retry-After que o Groq envia no header
+                if resp.status_code == 429:
+                    retry_after = int(resp.headers.get("retry-after", 60))
+                    print(f"\n  ⏳ Rate limit atingido — aguardando {retry_after}s antes de continuar...")
+                    time.sleep(retry_after + 1)
+                    continue
+
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
+
             except requests.exceptions.RequestException as e:
                 print(f"  Tentativa {tentativa+1} falhou: {e}")
                 time.sleep(2)
-        raise Exception("Falha ao comunicar com a API do Groq após 3 tentativas.")
+
+        raise Exception("Falha ao comunicar com a API do Groq após 5 tentativas.")
 
     def barra_progresso(self, atual: int, total: int, largura: int = 35) -> str:
         preenchido = int(largura * atual / total) if total > 0 else 0
@@ -69,6 +80,7 @@ class AnalyserAgent:
 
         total = len(vulns_para_analisar)
         print(f"\nAnalisando {total} vulnerabilidades com Groq ({self.model})...")
+        print(f"  (intervalo de 2s entre chamadas para respeitar o rate limit do tier gratuito)\n")
 
         enriched = []
         for idx, vuln in enumerate(vulns_para_analisar, 1):
@@ -103,7 +115,7 @@ Responda exatamente assim (exemplo):
                 vuln["recomendacao"]  = "Revisar manualmente"
 
             enriched.append(vuln)
-            time.sleep(0.2)
+            time.sleep(2)  # ~30 req/min — dentro do limite do tier gratuito do Groq
 
         print(self.barra_progresso(total, total), flush=True)
         print(f"\n  Análise concluída.")
@@ -116,7 +128,6 @@ Responda exatamente assim (exemplo):
             "vulnerabilidades":     enriched,
         }
 
-        # Garante que a pasta de destino existe
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
             json.dumps(output, indent=2, ensure_ascii=False),
