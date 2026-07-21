@@ -1,12 +1,12 @@
 """
 PhantomFix — Analyser
-Recebe o caminho do findings.json gerado pelo scanner,
+Recebe o caminho do findings.json e o caminho de saída,
 enriquece cada vulnerabilidade com score, justificativa,
 categoria e recomendação usando Groq (Llama 3.3 70B),
-e salva o resultado_enriquecido.json na mesma pasta.
+e salva o resultado enriquecido no caminho especificado.
 
 Uso:
-    python analyser.py <caminho_do_findings.json>
+    python analyser.py <findings.json> <saida.json>
 """
 
 import json
@@ -56,7 +56,7 @@ class AnalyserAgent:
         pct        = int(100 * atual / total) if total > 0 else 0
         return f"  [{barra}] {pct:3d}% ({atual}/{total})"
 
-    def analyze_findings(self, findings_path: Path) -> Path | None:
+    def analyze_findings(self, findings_path: Path, output_path: Path) -> Path | None:
         if not findings_path.exists():
             print(f"Arquivo não encontrado: {findings_path}")
             return None
@@ -91,16 +91,16 @@ Responda exatamente assim (exemplo):
                     clean = clean.split("```")[1].split("```")[0].strip()
 
                 result = json.loads(clean)
-                vuln["score"]        = result.get("score", "N/A")
+                vuln["score"]         = result.get("score", "N/A")
                 vuln["justificativa"] = result.get("justificativa", "N/A")
-                vuln["categoria"]    = result.get("categoria", "N/A")
-                vuln["recomendacao"] = result.get("recomendacao", "N/A")
+                vuln["categoria"]     = result.get("categoria", "N/A")
+                vuln["recomendacao"]  = result.get("recomendacao", "N/A")
             except Exception as e:
                 print(f"\n  ⚠ Erro em {vuln.get('id', '?')}: {e}")
                 vuln["justificativa"] = f"Falha na análise: {str(e)[:100]}"
-                vuln["score"]        = None
-                vuln["categoria"]    = "Desconhecida"
-                vuln["recomendacao"] = "Revisar manualmente"
+                vuln["score"]         = None
+                vuln["categoria"]     = "Desconhecida"
+                vuln["recomendacao"]  = "Revisar manualmente"
 
             enriched.append(vuln)
             time.sleep(0.2)
@@ -116,7 +116,8 @@ Responda exatamente assim (exemplo):
             "vulnerabilidades":     enriched,
         }
 
-        output_path = findings_path.parent / "resultado_enriquecido.json"
+        # Garante que a pasta de destino existe
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
             json.dumps(output, indent=2, ensure_ascii=False),
             encoding="utf-8"
@@ -126,9 +127,9 @@ Responda exatamente assim (exemplo):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Uso: python analyser.py <caminho_do_findings.json>")
+    if len(sys.argv) < 3:
+        print("Uso: python analyser.py <findings.json> <saida.json>")
         sys.exit(1)
 
     agent = AnalyserAgent()
-    agent.analyze_findings(Path(sys.argv[1]))
+    agent.analyze_findings(Path(sys.argv[1]), Path(sys.argv[2]))
