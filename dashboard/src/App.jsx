@@ -1,0 +1,30 @@
+import { useState } from "react";
+import Login from "./components/Login";
+import Home from "./components/Home";
+import ResultsView from "./components/ResultsView";
+import SpiritChat from "./components/SpiritChat";
+import "./App.css";
+
+export default function App() {
+  const [logado, setLogado] = useState(false);
+  const [relatorio, setRelatorio] = useState(null);
+
+  if (!logado) {
+    return <Login onLogin={() => setLogado(true)} />;
+  }
+
+  if (!relatorio) {
+    return (
+      <div className="app-shell">
+        <Home onRelatorioCarregado={setRelatorio} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell app-shell-resultados">
+      <ResultsView relatorio={relatorio} />
+      <SpiritChat />
+    </div>
+  );
+}
