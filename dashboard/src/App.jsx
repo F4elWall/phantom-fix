@@ -22,7 +22,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell app-shell-resultados">
+    <div className="dashboard">
       <ResultsView relatorio={relatorio} />
       <SpiritChat />
     </div>
