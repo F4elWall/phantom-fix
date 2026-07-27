@@ -1,4 +1,4 @@
-const CORE_URL = import.meta.env.VITE_CORE_URL || "http://localhost:8000";
+const CORE_URL   = import.meta.env.VITE_CORE_URL   || "http://localhost:8000";
 const SPIRIT_URL = import.meta.env.VITE_SPIRIT_URL || "http://localhost:8001";
 
 const NGROK_HEADERS = {
