@@ -1,4 +1,5 @@
 import { useState } from "react";
+import logo from "../assets/logo.png";
 
 const USUARIO_VALIDO = "admin";
 const SENHA_VALIDA = "admin";
@@ -20,12 +21,22 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="tela-login">
+      <div className="login-bg-grid" aria-hidden="true" />
+      <div className="login-orb login-orb-1" aria-hidden="true" />
+      <div className="login-orb login-orb-2" aria-hidden="true" />
+
       <div className="login-card">
-        <div className="login-glow" />
+        <div className="login-card-borda" aria-hidden="true" />
+
+    <div className="login-logo">
+        <img src={logo} alt="PhantomFix" />
+    </div>
+
         <h1 className="login-titulo">PhantomFix</h1>
         <p className="login-subtitulo">
           ASPM com IA · priorização e redução de alert fatigue
         </p>
+
         <form onSubmit={handleSubmit}>
           <label>
             Usuário
@@ -33,6 +44,8 @@ export default function Login({ onLogin }) {
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               autoFocus
+              autoComplete="username"
+              placeholder="admin"
             />
           </label>
           <label>
@@ -41,10 +54,17 @@ export default function Login({ onLogin }) {
               type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
             />
           </label>
           {erro && <p className="login-erro">{erro}</p>}
-          <button type="submit">Entrar</button>
+          <button type="submit" className="login-btn">
+            <span>Entrar</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </form>
       </div>
     </div>
