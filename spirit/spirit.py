@@ -3,9 +3,6 @@ PhantomFix — Spirit
 Agente que usa Gemini 1.5 Flash com PDFs de legislação (LGPD, ISO 27001)
 para responder perguntas sobre impacto real de vulnerabilidades.
 
-Ao iniciar, faz upload dos PDFs da pasta ./legislacao/ para a File API
-do Gemini. Cada pergunta recebe: PDFs + relatório atual + pergunta.
-
 POST /perguntar  { pergunta } → { resposta }
 GET  /saude               → status dos PDFs e cache
 """
@@ -15,19 +12,18 @@ import os
 from pathlib import Path
 
 import httpx
-import google.generativeai as genai
+from google import genai
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY",  "")
-CORE_URL        = os.getenv("CORE_URL",        "http://localhost:8000")
-MODELO          = os.getenv("SPIRIT_MODEL",    "gemini-1.5-flash")
-LEGISLACAO_DIR  = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+CORE_URL       = os.getenv("CORE_URL",       "http://localhost:8000")
+MODELO         = os.getenv("SPIRIT_MODEL",   "gemini-1.5-flash")
+LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
 
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+client_gemini = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="PhantomFix Spirit", version="0.2.0")
@@ -39,7 +35,6 @@ app.add_middleware(
 )
 
 # ── Estado global ──────────────────────────────────────────────────────────────
-# Referências dos PDFs já enviados à File API do Gemini (válidos por 48h)
 _arquivos_gemini: list = []
 _relatorio_cache: dict | None = None
 
@@ -60,9 +55,8 @@ DIRETRIZES:
    e obrigação de notificação (Art. 48) quando houver risco a dados pessoais
 4. Cite o controle ISO 27001 que está sendo violado (ex: A.8.28 — Codificação Segura)
 5. Dê exemplos concretos: "um atacante poderia fazer X, acessando Y, causando Z"
-6. Quando perguntado sobre prioridade, justifique com base em impacto e esforço de correção
-7. Seja direto — vá ao ponto que importa para o negócio, sem enrolar
-8. Tom: profissional, humano e construtivo
+6. Seja direto — vá ao ponto que importa para o negócio, sem enrolar
+7. Tom: profissional, humano e construtivo
 
 Responda sempre em português brasileiro."""
 
@@ -70,30 +64,27 @@ Responda sempre em português brasileiro."""
 # ── Upload dos PDFs ao iniciar ─────────────────────────────────────────────────
 @app.on_event("startup")
 async def carregar_legislacao():
-    """
-    Faz upload dos PDFs de ./legislacao/ para a File API do Gemini.
-    Os arquivos ficam disponíveis por 48h — para demos isso é suficiente.
-    Para uso contínuo, basta reiniciar o serviço.
-    """
-    global _arquivos_gemini
+    global _arquivos_gemini, client_gemini
 
     if not GEMINI_API_KEY:
-        print("[Spirit] ⚠  GEMINI_API_KEY não configurada — PDFs não carregados")
+        print("[Spirit] ⚠  GEMINI_API_KEY não configurada")
         return
 
+    client_gemini = genai.Client(api_key=GEMINI_API_KEY)
+
     if not LEGISLACAO_DIR.exists():
-        print(f"[Spirit] ⚠  Pasta '{LEGISLACAO_DIR}' não encontrada — crie e adicione os PDFs")
+        print(f"[Spirit] ⚠  Pasta '{LEGISLACAO_DIR}' não encontrada")
         return
 
     pdfs = sorted(LEGISLACAO_DIR.glob("*.pdf"))
     if not pdfs:
-        print(f"[Spirit] ⚠  Nenhum PDF em '{LEGISLACAO_DIR}' — adicione lgpd.pdf, iso27001.pdf etc.")
+        print(f"[Spirit] ⚠  Nenhum PDF em '{LEGISLACAO_DIR}'")
         return
 
-    print(f"[Spirit] Enviando {len(pdfs)} PDF(s) para o Gemini File API...")
+    print(f"[Spirit] Enviando {len(pdfs)} PDF(s) para o Gemini...")
     for pdf in pdfs:
         try:
-            arquivo = genai.upload_file(path=str(pdf), display_name=pdf.stem)
+            arquivo = client_gemini.files.upload(file=str(pdf))
             _arquivos_gemini.append(arquivo)
             print(f"[Spirit]   ✓ {pdf.name}")
         except Exception as e:
@@ -104,7 +95,6 @@ async def carregar_legislacao():
 
 # ── Cache do relatório ─────────────────────────────────────────────────────────
 async def obter_relatorio() -> dict | None:
-    """Busca o relatório mais recente do Core. Usa cache se o Core não responder."""
     global _relatorio_cache
     try:
         async with httpx.AsyncClient() as cliente:
@@ -116,7 +106,7 @@ async def obter_relatorio() -> dict | None:
             if resp.status_code == 200:
                 _relatorio_cache = resp.json()
     except Exception as e:
-        print(f"[Spirit] Não conseguiu buscar relatório do Core: {e}")
+        print(f"[Spirit] Não conseguiu buscar relatório: {e}")
     return _relatorio_cache
 
 
@@ -134,41 +124,38 @@ def raiz():
 @app.get("/saude")
 def saude():
     return {
-        "status":              "ok",
-        "modelo":              MODELO,
-        "pdfs_carregados":     len(_arquivos_gemini),
-        "nomes_pdfs":          [a.display_name for a in _arquivos_gemini],
-        "relatorio_em_cache":  _relatorio_cache is not None,
-        "protocolo_em_cache":  _relatorio_cache.get("protocolo") if _relatorio_cache else None,
+        "status":             "ok",
+        "modelo":             MODELO,
+        "pdfs_carregados":    len(_arquivos_gemini),
+        "nomes_pdfs":         [a.name for a in _arquivos_gemini],
+        "relatorio_em_cache": _relatorio_cache is not None,
     }
 
 
 @app.post("/perguntar")
 async def perguntar(body: PerguntaRequest):
-    if not GEMINI_API_KEY:
+    if not client_gemini:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY não configurada")
 
-    # 1. Busca o relatório atual
     relatorio = await obter_relatorio()
 
     contexto_relatorio = (
         "\n\n=== Relatório de vulnerabilidades da aplicação ===\n"
         + json.dumps(relatorio, indent=2, ensure_ascii=False)
         if relatorio
-        else "\n\n[Relatório indisponível no momento — responda de forma geral.]"
+        else "\n\n[Relatório indisponível — responda de forma geral.]"
     )
 
-    # 2. Monta o prompt final
     prompt = f"{SYSTEM_PROMPT}{contexto_relatorio}\n\n=== Pergunta ===\n{body.pergunta}"
 
-    # 3. Chama o Gemini com os PDFs + prompt
     try:
-        model = genai.GenerativeModel(MODELO)
+        # PDFs primeiro, depois o prompt
+        conteudo = _arquivos_gemini + [prompt]
 
-        # PDFs vêm primeiro, depois o prompt — o Gemini lê nessa ordem
-        partes = _arquivos_gemini + [prompt]
-
-        response = model.generate_content(partes)
+        response = client_gemini.models.generate_content(
+            model=MODELO,
+            contents=conteudo,
+        )
         return {"resposta": response.text}
 
     except Exception as e:
