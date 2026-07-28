@@ -16,7 +16,7 @@ export ZAP_TIMEOUT="3600"
 source ~/.phantom-fix.env
 
 export OPENROUTER_MODEL="google/gemma-2-9b-it:free"
-export GHOST_URL="http://localhost:8001/corrigir"
+export GHOST_URL="http://localhost:8002/corrigir"
 export JOBS_DIR="./jobs"
 
 mkdir -p $JOBS_DIR
