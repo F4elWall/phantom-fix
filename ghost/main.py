@@ -1,26 +1,34 @@
 """
-PhantomFix — Ghost (v1.0)
-Gera correções automáticas de código usando LLM.
+PhantomFix — Ghost (v1.1)
+Gera correções automáticas de código usando LLM (Groq).
 """
 
 import json
 import os
-from datetime import datetime
 from typing import Dict, Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import httpx
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-app = FastAPI(title="PhantomFix Ghost", version="1.0.0")
+app = FastAPI(title="PhantomFix Ghost", version="1.1.0")
 
-# Configuração
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Configuração ───────────────────────────────────────────────────────────────
 GHOST_API_KEY = os.getenv("GHOST_API_KEY")
-GHOST_MODEL = os.getenv("GHOST_MODEL", "llama-3.3-70b-versatile")
+GHOST_MODEL   = os.getenv("GHOST_MODEL", "llama-3.3-70b-versatile")
 
 if not GHOST_API_KEY:
     print("⚠️  AVISO: GHOST_API_KEY não configurada!")
 
+# ── Models ─────────────────────────────────────────────────────────────────────
 class Vulnerability(BaseModel):
     id: str
     arquivo: str
@@ -40,84 +48,101 @@ class CorrectionResponse(BaseModel):
     diff: Optional[str] = None
     confianca: float = 0.0
 
-# Histórico simples (em memória)
+# ── Histórico em memória ───────────────────────────────────────────────────────
 historico: Dict[str, CorrectionResponse] = {}
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def extrair_json(text: str) -> dict:
+    """Extrai JSON do texto mesmo que venha com markdown ou texto extra."""
+    # Remove blocos markdown
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0]
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0]
+
+    # Encontra o bloco JSON
+    start = text.find("{")
+    end   = text.rfind("}") + 1
+    if start == -1 or end <= start:
+        raise ValueError("Nenhum JSON encontrado na resposta do modelo")
+
+    return json.loads(text[start:end])
+
+# ── Endpoints ──────────────────────────────────────────────────────────────────
+@app.get("/")
+def raiz():
+    return {"status": "PhantomFix Ghost funcionando", "versao": "1.1.0"}
+
+@app.get("/health")
+def health():
+    return {
+        "status":          "healthy",
+        "model":           GHOST_MODEL,
+        "historico_size":  len(historico),
+        "api_key_ok":      bool(GHOST_API_KEY),
+    }
+
+@app.get("/historico")
+def get_historico():
+    return historico
 
 @app.post("/corrigir", response_model=CorrectionResponse)
 async def corrigir_vulnerabilidade(vuln: Vulnerability):
-    """Gera correção usando LLM (Groq)."""
+    """Gera correção segura para uma vulnerabilidade usando o Groq."""
     if not GHOST_API_KEY:
         raise HTTPException(status_code=500, detail="GHOST_API_KEY não configurada")
 
     prompt = f"""Você é um expert em segurança de aplicações e refatoração segura.
 
-Vulnerabilidade:
-- Tipo: {vuln.tipo}
-- Severidade: {vuln.severidade}
-- Arquivo: {vuln.arquivo}:{vuln.linha}
-- Descrição: {vuln.descricao}
+Analise a vulnerabilidade abaixo e forneça uma correção completa.
+
+VULNERABILIDADE:
+- ID:          {vuln.id}
+- Tipo:        {vuln.tipo}
+- Severidade:  {vuln.severidade}
+- Score:       {vuln.score}
+- Arquivo:     {vuln.arquivo} (linha {vuln.linha})
+- Descrição:   {vuln.descricao}
 - Justificativa: {vuln.justificativa}
-- Trecho do código: {vuln.trecho_do_codigo}
+- Recomendação existente: {vuln.recomendacao or "nenhuma"}
 
+TRECHO DO CÓDIGO VULNERÁVEL:
+{vuln.trecho_do_codigo}
 
-Forneça uma correção segura, moderna e bem comentada.
+INSTRUÇÕES:
+1. Corrija o código de forma segura e moderna
+2. Adicione comentários explicando cada mudança importante
+3. Mantenha o estilo e a lógica original sempre que possível
+4. Seja preciso — não invente imports ou funções que não existem no contexto
 
-Responda **apenas** com JSON válido:
-{{
-  "correcao": "código corrigido completo com comentários",
-  "explicacao": "explicação clara e detalhada do problema e da solução",
-  "diff": "resumo das principais mudanças",
-  "confianca": 0.85
-}}
+Responda APENAS com JSON válido, sem texto antes ou depois, sem markdown:
+{{"correcao": "código corrigido completo", "explicacao": "explicação clara do problema e da solução", "diff": "resumo das mudanças principais", "confianca": 0.85}}
 """
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {GHOST_API_KEY}"},
                 json={
-                    "model": GHOST_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "model":       GHOST_MODEL,
+                    "messages":    [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
-                    "max_tokens": 1200
+                    "max_tokens":  1500,
                 },
-                timeout=90
             )
             resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
 
-            # Limpa markdown se existir
-            if content.startswith("```json"):
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        result  = extrair_json(content)
 
-            result = json.loads(content)
-            correction = CorrectionResponse(**result)
+        correction = CorrectionResponse(**result)
+        historico[vuln.id] = correction
+        return correction
 
-            # Salva no histórico
-            historico[vuln.id] = correction
-            return correction
-
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail=f"Resposta inválida do modelo: {e}")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Erro na API Groq: {e.response.text}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar correção: {str(e)}")
-
-
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-        "model": GHOST_MODEL,
-        "historico_size": len(historico)
-    }
-
-
-@app.get("/historico")
-async def get_historico():
-    return historico
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar correção: {e}")
