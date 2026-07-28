@@ -3,7 +3,7 @@ PhantomFix — Analyser
 Recebe o caminho do findings.json e o caminho de saída,
 enriquece cada vulnerabilidade com score, justificativa,
 categoria e recomendação usando Groq (Llama 3.3 70B),
-e salva o resultado enriquecido no caminho especificado.
+ordena por score decrescente e salva o resultado.
 
 Uso:
     python analyser.py <findings.json> <saida.json>
@@ -45,10 +45,9 @@ class AnalyserAgent:
             try:
                 resp = requests.post(self.url, headers=headers, json=payload, timeout=60)
 
-                # Rate limit — respeita o Retry-After que o Groq envia no header
                 if resp.status_code == 429:
                     retry_after = int(resp.headers.get("retry-after", 60))
-                    print(f"\n  ⏳ Rate limit atingido — aguardando {retry_after}s antes de continuar...")
+                    print(f"\n  ⏳ Rate limit — aguardando {retry_after}s...")
                     time.sleep(retry_after + 1)
                     continue
 
@@ -80,7 +79,7 @@ class AnalyserAgent:
 
         total = len(vulns_para_analisar)
         print(f"\nAnalisando {total} vulnerabilidades com Groq ({self.model})...")
-        print(f"  (intervalo de 2s entre chamadas para respeitar o rate limit do tier gratuito)\n")
+        print(f"  (intervalo de 2s entre chamadas para respeitar o rate limit)\n")
 
         enriched = []
         for idx, vuln in enumerate(vulns_para_analisar, 1):
@@ -97,10 +96,16 @@ Responda exatamente assim (exemplo):
             try:
                 raw   = self._call_llm(prompt)
                 clean = raw.strip()
-                if clean.startswith("```json"):
+
+                if "```json" in clean:
                     clean = clean.split("```json")[1].split("```")[0].strip()
-                elif clean.startswith("```"):
+                elif "```" in clean:
                     clean = clean.split("```")[1].split("```")[0].strip()
+
+                start = clean.find("{")
+                end   = clean.rfind("}") + 1
+                if start != -1 and end > start:
+                    clean = clean[start:end]
 
                 result = json.loads(clean)
                 vuln["score"]         = result.get("score", "N/A")
@@ -115,17 +120,24 @@ Responda exatamente assim (exemplo):
                 vuln["recomendacao"]  = "Revisar manualmente"
 
             enriched.append(vuln)
-            time.sleep(2)  # ~30 req/min — dentro do limite do tier gratuito do Groq
+            time.sleep(2)
 
         print(self.barra_progresso(total, total), flush=True)
         print(f"\n  Análise concluída.")
+
+        # Ordena por score decrescente
+        enriched_ordenado = sorted(
+            enriched,
+            key=lambda v: float(v.get("score") or 0),
+            reverse=True
+        )
 
         output = {
             **data,
             "analisado_por_agente": True,
             "modelo_ia":            f"groq/{self.model}",
             "processado_em":        datetime.now().isoformat(),
-            "vulnerabilidades":     enriched,
+            "vulnerabilidades":     enriched_ordenado,
         }
 
         output_path.parent.mkdir(parents=True, exist_ok=True)

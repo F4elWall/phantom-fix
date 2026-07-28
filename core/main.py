@@ -246,6 +246,7 @@ async def solicitar_correcao(vuln: dict, cliente: httpx.AsyncClient) -> dict:
         "descricao":        vuln.get("descricao"),
         "trecho_do_codigo": vuln.get("trecho_do_codigo", ""),
         "score":            vuln.get("score", 0),
+        "justificativa":    vuln.get("justificativa", ""),
         "categoria":        vuln.get("categoria", ""),
         "recomendacao":     vuln.get("recomendacao", ""),
     }
