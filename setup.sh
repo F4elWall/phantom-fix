@@ -67,6 +67,8 @@ setup_venv() {
 setup_venv "core"         "Core"
 setup_venv "data-control" "Data Control"
 setup_venv "analyser"     "Analyser"
+setup_venv "ghost"        "Ghost"
+setup_venv "spirit"       "Spirit"
 
 # ── 3. Pastas necessárias ─────────────────────────────────────────────────────
 echo ""
@@ -86,6 +88,7 @@ else
 # NÃO commite este arquivo no Git!
 export OPENROUTER_API_KEY=""
 export GROQ_API_KEY=""
+export GHOST_API_KEY=""
 EOF
     ok "~/.phantom-fix.env criado — preencha as chaves antes de rodar!"
 fi
@@ -94,6 +97,8 @@ fi
 echo ""
 info "Ajustando permissões dos scripts..."
 chmod +x "$ROOT/start-core.sh"
+chmod +x "$ROOT/start-ghost.sh"
+chmod +x "$ROOT/start-spirit.sh"
 chmod +x "$ROOT/start-zap.sh"
 ok "Permissões ajustadas"
 
@@ -128,10 +133,14 @@ echo ""
 echo "  2. Suba o ZAP (em uma aba separada):"
 echo "       ~/phantom-fix/start-zap.sh"
 echo ""
-echo "  3. Suba o Core (em outra aba):"
+echo "  3. Suba o Ghost (em outra aba):"
+echo "       ~/phantom-fix/start-ghost.sh"
+echo ""
+echo "  4. Suba o Core (em outra aba):"
 echo "       ~/phantom-fix/start-core.sh"
 echo ""
-echo "  4. Confirme que está tudo de pé:"
+echo "  5. Confirme que está tudo de pé:"
 echo "       curl http://localhost:8080/JSON/core/view/version/  # ZAP"
+echo "       curl http://localhost:8002/                          # Ghost"
 echo "       curl http://localhost:8000/                          # Core"
 echo ""
