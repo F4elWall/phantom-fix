@@ -34,7 +34,7 @@ ANALYSER_PATH   = os.getenv("ANALYSER_PATH",   "../analyser/analyser.py")
 SCANNER_PYTHON  = os.getenv("SCANNER_PYTHON",  "python3")
 SCANNER_TIMEOUT = int(os.getenv("SCANNER_TIMEOUT", "7200"))
 
-GHOST_URL       = os.getenv("GHOST_URL", "http://localhost:8001/corrigir")
+GHOST_URL       = os.getenv("GHOST_URL", "http://localhost:8002/corrigir")
 
 # Pasta onde ficam salvos os resultados permanentes por protocolo
 RESULTADOS_DIR  = Path(os.getenv("RESULTADOS_DIR", "../resultados"))
