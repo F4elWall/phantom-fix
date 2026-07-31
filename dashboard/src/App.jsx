@@ -9,6 +9,11 @@ export default function App() {
   const [logado, setLogado] = useState(false);
   const [relatorio, setRelatorio] = useState(null);
 
+  function sair() {
+    setLogado(false);
+    setRelatorio(null);
+  }
+
   if (!logado) {
     return <Login onLogin={() => setLogado(true)} />;
   }
@@ -23,7 +28,11 @@ export default function App() {
 
   return (
     <div className="dashboard">
-      <ResultsView relatorio={relatorio} />
+      <ResultsView
+        relatorio={relatorio}
+        onVerHistorico={() => setRelatorio(null)}
+        onSair={sair}
+      />
       <SpiritChat />
     </div>
   );
