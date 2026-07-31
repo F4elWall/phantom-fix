@@ -22,7 +22,7 @@ from PIL import Image
 # ── Configuração do Core (Mantida idêntica à original) ──────────────────────────
 CORE_URL = os.getenv(
     "PHANTOMFIX_CORE_URL",
-    "http://4.222.217.255:8000/scan"
+    "https://phantom-fix.duckdns.org/api/scan"
 )
 
 # Configurações de Cores do Tema Premium
