@@ -135,7 +135,7 @@ class PhantomFixApp(ctk.CTk):
         self.entry_url.grid(row=0, column=2, rowspan=2, padx=20, sticky="e")
 
         # ── 3. Cartão de Progresso da Análise (Timeline) ──
-        self.card_progress = self._create_card_frame(row=3, height=170)
+        self.card_progress = self._create_card_frame(row=4, height=170)
         ctk.CTkLabel(self.card_progress, text="Progresso da análise", font=("Segoe UI", 14, "bold"), text_color=COLOR_TEXT_MAIN).pack(anchor="w", padx=20, pady=(12, 5))
 
         self.timeline_frame = ctk.CTkFrame(self.card_progress, fg_color="transparent")
@@ -158,6 +158,32 @@ class PhantomFixApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.status_info_frame, text="Selecione um repositório para iniciar o processo de análise.", font=("Segoe UI", 12), text_color=COLOR_TEXT_DIM)
         self.status_label.pack(side="left", pady=8)
 
+        # ── 3b. Campo de Token ──
+        self.card_token = self._create_card_frame(row=3)
+        self.card_token.grid_columnconfigure(0, weight=0)
+        self.card_token.grid_columnconfigure(1, weight=1)
+        self.card_token.grid_columnconfigure(2, weight=0)
+
+        ctk.CTkLabel(self.card_token, text="🔑", font=("Segoe UI", 20), text_color=COLOR_PRIMARY).grid(row=0, column=0, rowspan=2, padx=(20, 15), sticky="w")
+        ctk.CTkLabel(self.card_token, text="Token único", font=("Segoe UI", 14, "bold"), text_color=COLOR_TEXT_MAIN).grid(row=0, column=1, sticky="w", pady=(12,0))
+        ctk.CTkLabel(self.card_token, text="Cole o token gerado no dashboard para vincular este client.", font=("Segoe UI", 12), text_color=COLOR_TEXT_DIM).grid(row=1, column=1, sticky="w", pady=(0, 12))
+
+        self.entry_token = ctk.CTkEntry(
+            self.card_token, placeholder_text="Cole seu token aqui...", width=280, height=36,
+            border_color=COLOR_BORDER, fg_color=COLOR_BG, text_color=COLOR_TEXT_MAIN, corner_radius=6
+        )
+        token_salvo = carregar_token_salvo()
+        if token_salvo:
+            self.entry_token.insert(0, token_salvo)
+        self.entry_token.grid(row=0, column=2, rowspan=2, padx=(0,10), sticky="e")
+
+        self.btn_vincular = ctk.CTkButton(
+            self.card_token, text="Vincular", font=("Segoe UI", 12, "bold"),
+            fg_color=COLOR_SUCCESS, hover_color="#059669", corner_radius=8, height=36, width=90,
+            command=self.vincular_token
+        )
+        self.btn_vincular.grid(row=0, column=3, rowspan=2, padx=(5, 15), sticky="e")
+
         # ── 4. Botão de Disparo / Envio Real ──
         self.action_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.action_frame.grid(row=4, column=0, padx=30, pady=10, sticky="e")
@@ -171,7 +197,7 @@ class PhantomFixApp(ctk.CTk):
 
         # ── 5. Rodapé ──
         footer_frame = ctk.CTkFrame(self, fg_color="transparent")
-        footer_frame.grid(row=5, column=0, pady=15, sticky="s")
+        footer_frame.grid(row=6, column=0, pady=15, sticky="s")
         ctk.CTkLabel(footer_frame, text="👻 PhantomFix Client v1.0.0", font=("Segoe UI", 11), text_color="#3F435C").pack()
 
     def _build_timeline(self, parent, steps):
@@ -198,6 +224,25 @@ class PhantomFixApp(ctk.CTk):
                 line = ctk.CTkFrame(parent, fg_color="#1F2937", height=2)
                 line.grid(row=0, column=col_idx + 1, sticky="ew", padx=5, pady=(12, 0))
                 self.timeline_steps[i]["line"] = line
+
+    def vincular_token(self):
+        token = self.entry_token.get().strip()
+        if not token:
+            messagebox.showwarning("Token vazio", "Cole o token antes de vincular.")
+            return
+        try:
+            import requests as req
+            resp = req.post(LINK_URL, json={"token": token}, timeout=10)
+            if resp.status_code == 200:
+                salvar_token(token)
+                self.btn_vincular.configure(text="✓ Vinculado", fg_color="#059669", state="disabled")
+                messagebox.showinfo("Vinculado!", "Token vinculado com sucesso! Você já pode enviar repositórios.")
+            elif resp.status_code == 404:
+                messagebox.showerror("Token inválido", "Token não encontrado. Verifique e tente novamente.")
+            else:
+                messagebox.showerror("Erro", f"Servidor respondeu {resp.status_code}")
+        except Exception as e:
+            messagebox.showerror("Erro de conexão", f"Não foi possível conectar ao Core.\n{e}")
 
     def escolher_pasta(self):
         pasta = filedialog.askdirectory(title="Escolha a pasta do repositório")
@@ -275,7 +320,7 @@ class PhantomFixApp(ctk.CTk):
                 resposta = requests.post(
                     CORE_URL,
                     files={"arquivo": (zip_path.name, f, "application/zip")},
-                    data={"repositorio": repo_nome},
+                    data={"repositorio": repo_nome, "token": self.entry_token.get().strip()},
                     timeout=300  
                 )
 

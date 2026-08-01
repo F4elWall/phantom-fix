@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Login from "./components/Login";
+import SignUp from "./components/SignUp";
+import Welcome from "./components/Welcome";
 import Home from "./components/Home";
 import ResultsView from "./components/ResultsView";
 import SpiritChat from "./components/SpiritChat";
@@ -8,26 +10,32 @@ import HistoricoView from "./components/HistoricoView";
 import { detectarScanAtivo } from "./api";
 import "./App.css";
 
+/**
+ * Telas possíveis:
+ *  auth     → login ou signup (não autenticado)
+ *  signup   → formulário de criar conta
+ *  welcome  → pós-signup: exibe token + instrução de vínculo
+ *  home     → carregando último relatório ou tela vazia
+ *  pipeline → acompanhar scan em andamento
+ *  results  → relatório de vulnerabilidades
+ *  historico→ lista de scans anteriores
+ */
+
+function sessaoSalva() {
+  return !!localStorage.getItem("session_token");
+}
+
 export default function App() {
-  const [logado, setLogado] = useState(false);
+  // Se já havia sessão salva, pula direto pro dashboard
+  const [tela, setTela] = useState(sessaoSalva() ? "home" : "auth");
+  const [usuarioAuth, setUsuarioAuth] = useState(null); // dados do signup/login
   const [relatorio, setRelatorio] = useState(null);
-  const [tela, setTela] = useState("home");
   const [protocoloPipeline, setProtocoloPipeline] = useState(null);
   const [scanState, setScanState] = useState({ tipo: "concluido" });
   const [spiritAberto, setSpiritAberto] = useState(true);
 
-  function sair() {
-    setLogado(false);
-    setRelatorio(null);
-    setTela("home");
-    setProtocoloPipeline(null);
-  }
-
-  const abrirPipeline = useCallback((protocolo) => {
-    if (!protocolo) return;
-    setProtocoloPipeline(protocolo);
-    setTela("pipeline");
-  }, []);
+  // ── Polling de scan ativo (só quando no dashboard) ──────────────────────
+  const logado = !["auth", "signup", "welcome"].includes(tela);
 
   useEffect(() => {
     if (!logado) return;
@@ -38,31 +46,54 @@ export default function App() {
         const ativo = await detectarScanAtivo();
         if (cancel) return;
         if (ativo) {
-          setScanState({
-            tipo: "rodando",
-            protocolo: ativo.protocolo,
-            repositorio: ativo.repositorio,
-          });
+          setScanState({ tipo: "rodando", protocolo: ativo.protocolo, repositorio: ativo.repositorio });
         } else {
           setScanState({ tipo: "concluido" });
         }
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     }
 
     tick();
     const id = setInterval(tick, 4000);
-    return () => {
-      cancel = true;
-      clearInterval(id);
-    };
+    return () => { cancel = true; clearInterval(id); };
   }, [logado]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  function sair() {
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("user_nome");
+    localStorage.removeItem("user_token");
+    setRelatorio(null);
+    setProtocoloPipeline(null);
+    setUsuarioAuth(null);
+    setTela("auth");
+  }
+
+  function onLogin(dados) {
+    setUsuarioAuth(dados);
+    setTela("home");
+  }
+
+  function onCriouConta(dados) {
+    setUsuarioAuth(dados);
+    setTela("welcome");
+  }
+
+  function onAcessarDashboard() {
+    setTela("home");
+  }
 
   function onRelatorioCarregado(dados) {
     setRelatorio(dados);
     setTela("results");
   }
+
+  const abrirPipeline = useCallback((protocolo) => {
+    if (!protocolo) return;
+    setProtocoloPipeline(protocolo);
+    setTela("pipeline");
+  }, []);
 
   function onConcluidoPipeline(rel) {
     setRelatorio(rel);
@@ -70,13 +101,40 @@ export default function App() {
     setScanState({ tipo: "concluido" });
   }
 
-  if (!logado) {
-    return <Login onLogin={() => setLogado(true)} />;
+  // ── Roteamento ────────────────────────────────────────────────────────────
+
+  if (tela === "auth") {
+    return (
+      <Login
+        onLogin={onLogin}
+        onIrParaSignup={() => setTela("signup")}
+      />
+    );
   }
+
+  if (tela === "signup") {
+    return (
+      <SignUp
+        onCriouConta={onCriouConta}
+        onIrParaLogin={() => setTela("auth")}
+      />
+    );
+  }
+
+  if (tela === "welcome" && usuarioAuth) {
+    return (
+      <Welcome
+        usuario={usuarioAuth}
+        onAcessarDashboard={onAcessarDashboard}
+      />
+    );
+  }
+
+  const dashboardClass = `dashboard ${spiritAberto ? "" : "spirit-recolhido"}`;
 
   if (tela === "pipeline" && protocoloPipeline) {
     return (
-      <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+      <div className={dashboardClass}>
         <PipelineView
           protocolo={protocoloPipeline}
           scanState={scanState}
@@ -94,16 +152,13 @@ export default function App() {
 
   if (tela === "historico") {
     return (
-      <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+      <div className={dashboardClass}>
         <HistoricoView
           scanState={scanState}
           spiritAberto={spiritAberto}
           onToggleSpirit={() => setSpiritAberto((v) => !v)}
           onAbrirPipeline={abrirPipeline}
-          onSelecionar={(rel) => {
-            setRelatorio(rel);
-            setTela("results");
-          }}
+          onSelecionar={(rel) => { setRelatorio(rel); setTela("results"); }}
           onVoltar={() => setTela(relatorio ? "results" : "home")}
           onSair={sair}
         />
@@ -121,7 +176,7 @@ export default function App() {
   }
 
   return (
-    <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+    <div className={dashboardClass}>
       <ResultsView
         relatorio={relatorio}
         scanState={scanState}
