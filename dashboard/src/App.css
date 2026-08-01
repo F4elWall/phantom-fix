@@ -552,7 +552,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 
 .spirit-logo { 
-  width: 200px; 
+  width: 160px; 
   height: auto; 
   object-fit: contain; 
 }
