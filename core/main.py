@@ -12,7 +12,7 @@ import uuid
 import zipfile
 import asyncio
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -213,7 +213,7 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
             "protocolo":        protocolo,
             "repositorio":      repositorio,
             "analisado_em":     achados.get("analisado_em"),
-            "processado_em":    datetime.now().isoformat(),
+            "processado_em":    datetime.now(timezone.utc).isoformat(),
             "total_encontrado": achados.get("total_encontrado", len(vulnerabilidades)),
             "origem_semgrep":   achados.get("origem_semgrep", 0),
             "origem_zap":       achados.get("origem_zap", 0),
@@ -232,7 +232,7 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
 
         # ── 6. Relatório final ───────────────────────────────────────────────
         resultado["status"]           = "concluido"
-        resultado["corrigido_em"]     = datetime.now().isoformat()
+        resultado["corrigido_em"]     = datetime.now(timezone.utc).isoformat()
         resultado["vulnerabilidades"] = vulnerabilidades
         salvar_resultado(protocolo, resultado)
 
