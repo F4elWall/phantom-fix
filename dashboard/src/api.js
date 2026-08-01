@@ -1,15 +1,75 @@
 const CORE_URL = import.meta.env.VITE_CORE_URL || "http://localhost:8000";
 const SPIRIT_URL = import.meta.env.VITE_SPIRIT_URL || "http://localhost:8001";
 
-const CORE_HEADERS = {
+const BASE_HEADERS = {
   "ngrok-skip-browser-warning": "true",
 };
+
+function authHeaders() {
+  const token = localStorage.getItem("session_token");
+  return {
+    ...BASE_HEADERS,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export async function signup({ nome, email, senha }) {
+  const resp = await fetch(`${CORE_URL}/auth/signup`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ nome, email, senha }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao criar conta");
+  return data;
+}
+
+export async function login({ email, senha }) {
+  const resp = await fetch(`${CORE_URL}/auth/login`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, senha }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "E-mail ou senha incorretos");
+  return data;
+}
+
+export async function logout() {
+  await fetch(`${CORE_URL}/auth/logout`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  localStorage.removeItem("session_token");
+}
+
+export async function checkLink() {
+  const resp = await fetch(`${CORE_URL}/auth/check-link`, {
+    headers: authHeaders(),
+  });
+  if (!resp.ok) return { client_linked: false };
+  return resp.json();
+}
+
+export async function regenToken() {
+  const resp = await fetch(`${CORE_URL}/auth/regen-token`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao gerar novo token");
+  return data;
+}
+
+// ── Relatórios ────────────────────────────────────────────────────────────────
 
 export async function buscarRelatorio(protocolo) {
   const url = protocolo
     ? `${CORE_URL}/relatorio?protocolo=${encodeURIComponent(protocolo)}`
     : `${CORE_URL}/relatorio`;
-  const resp = await fetch(url, { headers: CORE_HEADERS });
+  const resp = await fetch(url, { headers: authHeaders() });
   if (!resp.ok) {
     if (resp.status === 404) return null;
     throw new Error("Core não respondeu");
@@ -18,12 +78,11 @@ export async function buscarRelatorio(protocolo) {
 }
 
 export async function listarResultados() {
-  const resp = await fetch(`${CORE_URL}/resultados`, { headers: CORE_HEADERS });
+  const resp = await fetch(`${CORE_URL}/resultados`, { headers: authHeaders() });
   if (!resp.ok) throw new Error("Core não respondeu");
   return resp.json();
 }
 
-/** Lista histórico enriquecido (repo, data, total vulns). */
 export async function listarHistorico() {
   const data = await listarResultados();
   const lista = data.resultados || [];
@@ -66,9 +125,10 @@ export async function listarHistorico() {
 }
 
 export async function statusScan(protocolo) {
-  const resp = await fetch(`${CORE_URL}/scan/${encodeURIComponent(protocolo)}/status`, {
-    headers: CORE_HEADERS,
-  });
+  const resp = await fetch(
+    `${CORE_URL}/scan/${encodeURIComponent(protocolo)}/status`,
+    { headers: authHeaders() }
+  );
   if (!resp.ok) {
     if (resp.status === 404) return null;
     throw new Error("Core não respondeu");
@@ -77,12 +137,11 @@ export async function statusScan(protocolo) {
 }
 
 export async function statusCore() {
-  const resp = await fetch(`${CORE_URL}/status`, { headers: CORE_HEADERS });
+  const resp = await fetch(`${CORE_URL}/status`, { headers: authHeaders() });
   if (!resp.ok) throw new Error("Core não respondeu");
   return resp.json();
 }
 
-/** Descobre se há job em andamento. */
 export async function detectarScanAtivo() {
   try {
     const data = await listarResultados();
