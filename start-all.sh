@@ -1,7 +1,7 @@
 #!/bin/bash
 # ══════════════════════════════════════════════════════════════════════════════
 # PhantomFix — Start All
-# Sobe ZAP, Ghost e Core em sequência, com logs unificados.
+# Sobe ZAP, Spirit, Ghost e Core em sequência, com logs unificados.
 # ══════════════════════════════════════════════════════════════════════════════
 
 VERDE="\033[0;32m"
@@ -29,14 +29,13 @@ echo ""
 
 # ── 1. ZAP ────────────────────────────────────────────────────────────────────
 info "Subindo OWASP ZAP..."
-/opt/ZAP/zap.sh -daemon -port 8080 \
+/snap/bin/zaproxy -daemon -port 8080 \
   -config api.disablekey=true \
   -config api.addrs.addr.name=.* \
   -config api.addrs.addr.regex=true \
   > "$LOG_DIR/zap.log" 2>&1 &
 ZAP_PID=$!
 
-# Aguarda ZAP ficar pronto
 echo -n "  Aguardando ZAP"
 for i in $(seq 1 30); do
   sleep 2
@@ -52,7 +51,25 @@ for i in $(seq 1 30); do
   fi
 done
 
-# ── 2. Ghost ──────────────────────────────────────────────────────────────────
+# ── 2. Spirit ─────────────────────────────────────────────────────────────────
+info "Subindo Spirit..."
+cd "$ROOT/spirit"
+source venv/bin/activate
+export CORE_URL="http://localhost:8000"
+export SPIRIT_MODEL="llama-3.3-70b-versatile"
+uvicorn spirit:app --host 0.0.0.0 --port 8001 \
+  > "$LOG_DIR/spirit.log" 2>&1 &
+SPIRIT_PID=$!
+deactivate
+
+sleep 3
+if curl -s http://localhost:8001/saude > /dev/null 2>&1; then
+  ok "Spirit pronto (PID $SPIRIT_PID)"
+else
+  erro "Spirit não respondeu — verifique logs/spirit.log"
+fi
+
+# ── 3. Ghost ──────────────────────────────────────────────────────────────────
 info "Subindo Ghost..."
 cd "$ROOT/ghost"
 source venv/bin/activate
@@ -69,7 +86,7 @@ else
   erro "Ghost não respondeu — verifique logs/ghost.log"
 fi
 
-# ── 3. Core ───────────────────────────────────────────────────────────────────
+# ── 4. Core ───────────────────────────────────────────────────────────────────
 info "Subindo Core..."
 cd "$ROOT/core"
 source venv/bin/activate
@@ -100,17 +117,18 @@ echo "╔═══════════════════════�
 echo "║           Tudo no ar! 👻                 ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
-echo "  ZAP   → http://localhost:8080  (PID $ZAP_PID)"
-echo "  Ghost → http://localhost:8002  (PID $GHOST_PID)"
-echo "  Core  → http://localhost:8000  (PID $CORE_PID)"
+echo "  ZAP    → http://localhost:8080  (PID $ZAP_PID)"
+echo "  Spirit → http://localhost:8001  (PID $SPIRIT_PID)"
+echo "  Ghost  → http://localhost:8002  (PID $GHOST_PID)"
+echo "  Core   → http://localhost:8000  (PID $CORE_PID)"
 echo ""
 echo "  Logs em: $LOG_DIR/"
 echo ""
-echo "  Para parar tudo: kill $ZAP_PID $GHOST_PID $CORE_PID"
+echo "  Para parar tudo: kill $ZAP_PID $SPIRIT_PID $GHOST_PID $CORE_PID"
 echo "  Ou pressione Ctrl+C agora."
 echo ""
 
 # ── Tail dos logs unificados ──────────────────────────────────────────────────
-trap "echo ''; info 'Encerrando...'; kill $ZAP_PID $GHOST_PID $CORE_PID 2>/dev/null; exit 0" INT
+trap "echo ''; info 'Encerrando...'; kill $ZAP_PID $SPIRIT_PID $GHOST_PID $CORE_PID 2>/dev/null; exit 0" INT
 
-tail -f "$LOG_DIR/core.log" "$LOG_DIR/ghost.log" "$LOG_DIR/zap.log"
+tail -f "$LOG_DIR/core.log" "$LOG_DIR/spirit.log" "$LOG_DIR/ghost.log" "$LOG_DIR/zap.log"
