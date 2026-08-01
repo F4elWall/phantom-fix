@@ -22,7 +22,7 @@ from PIL import Image
 # ── Configuração do Core (Mantida idêntica à original) ──────────────────────────
 CORE_URL = os.getenv(
     "PHANTOMFIX_CORE_URL",
-    "https://both-uphold-pointed.ngrok-free.dev/scan"
+    "https://phantom-fix.duckdns.org/api/scan"
 )
 
 # Configurações de Cores do Tema Premium
@@ -276,7 +276,7 @@ class PhantomFixApp(ctk.CTk):
                     CORE_URL,
                     files={"arquivo": (zip_path.name, f, "application/zip")},
                     data={"repositorio": repo_nome},
-                    timeout=30  
+                    timeout=300  
                 )
 
             if resposta.status_code == 200:
@@ -285,8 +285,6 @@ class PhantomFixApp(ctk.CTk):
             else:
                 self._finalizar_safe(erro=f"Servidor respondeu {resposta.status_code}: {resposta.text[:200]}")
 
-        except requests.exceptions.ConnectionError:
-            self._finalizar_safe(erro="Não foi possível conectar ao Core. Verifique sua internet ou a URL configurada.")
         except Exception as e:
             self._finalizar_safe(erro=str(e))
 

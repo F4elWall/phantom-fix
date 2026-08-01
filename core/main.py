@@ -12,7 +12,7 @@ import uuid
 import zipfile
 import asyncio
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -34,7 +34,7 @@ ANALYSER_PATH   = os.getenv("ANALYSER_PATH",   "../analyser/analyser.py")
 SCANNER_PYTHON  = os.getenv("SCANNER_PYTHON",  "python3")
 SCANNER_TIMEOUT = int(os.getenv("SCANNER_TIMEOUT", "7200"))
 
-GHOST_URL       = os.getenv("GHOST_URL", "http://localhost:8001/corrigir")
+GHOST_URL       = os.getenv("GHOST_URL", "http://localhost:8002/corrigir")
 
 # Pasta onde ficam salvos os resultados permanentes por protocolo
 RESULTADOS_DIR  = Path(os.getenv("RESULTADOS_DIR", "../resultados"))
@@ -49,6 +49,25 @@ _status_jobs: dict[str, dict] = {}
 _ultimo_resultado: dict | None = None
 _ultimo_protocolo: str | None = None
 
+def carregar_ultimo_resultado_do_disco():
+    global _ultimo_resultado, _ultimo_protocolo
+    if not RESULTADOS_DIR.exists():
+        return
+    pastas = sorted(
+        (p for p in RESULTADOS_DIR.iterdir() if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    for pasta in pastas:
+        relatorio = pasta / "relatorio.json"
+        if relatorio.exists():
+            _ultimo_resultado = json.loads(relatorio.read_text(encoding="utf-8"))
+            _ultimo_protocolo = pasta.name
+            print(f"[Core] Resultado restaurado: {pasta.name}")
+            return
+
+
+carregar_ultimo_resultado_do_disco()
 
 def carregar_resultado(protocolo: str | None = None) -> dict | None:
     global _ultimo_resultado, _ultimo_protocolo
@@ -194,7 +213,7 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
             "protocolo":        protocolo,
             "repositorio":      repositorio,
             "analisado_em":     achados.get("analisado_em"),
-            "processado_em":    datetime.now().isoformat(),
+            "processado_em":    datetime.now(timezone.utc).isoformat(),
             "total_encontrado": achados.get("total_encontrado", len(vulnerabilidades)),
             "origem_semgrep":   achados.get("origem_semgrep", 0),
             "origem_zap":       achados.get("origem_zap", 0),
@@ -213,7 +232,7 @@ def pipeline_completo(protocolo: str, pasta_job: Path, zip_path: Path, repositor
 
         # ── 6. Relatório final ───────────────────────────────────────────────
         resultado["status"]           = "concluido"
-        resultado["corrigido_em"]     = datetime.now().isoformat()
+        resultado["corrigido_em"]     = datetime.now(timezone.utc).isoformat()
         resultado["vulnerabilidades"] = vulnerabilidades
         salvar_resultado(protocolo, resultado)
 
@@ -246,6 +265,7 @@ async def solicitar_correcao(vuln: dict, cliente: httpx.AsyncClient) -> dict:
         "descricao":        vuln.get("descricao"),
         "trecho_do_codigo": vuln.get("trecho_do_codigo", ""),
         "score":            vuln.get("score", 0),
+        "justificativa":    vuln.get("justificativa", ""),
         "categoria":        vuln.get("categoria", ""),
         "recomendacao":     vuln.get("recomendacao", ""),
     }
