@@ -1,6 +1,6 @@
 import { useState } from "react";
 import VulnCard from "./VulnCard";
-import logoImg from "../assets/logo.png";
+import Topbar from "./Topbar";
 
 const QUANTIDADE_PRIORITARIA = 4;
 const VULNS_POR_PAGINA = 6;
@@ -90,7 +90,7 @@ function VulnLinha({ vuln }) {
 }
 
 // ── ResultsView ────────────────────────────────────────────────────────────────
-export default function ResultsView({ relatorio, onVerHistorico, onSair }) {
+export default function ResultsView({ relatorio, scanState, spiritAberto, onToggleSpirit, onVerHistorico, onAbrirPipeline, onSair }) {
   const [tabAtiva, setTabAtiva] = useState("todas");
   const [pagina, setPagina] = useState(1);
 
@@ -145,38 +145,16 @@ export default function ResultsView({ relatorio, onVerHistorico, onSair }) {
   return (
     <>
       {/* ── Topbar ── */}
-      <header className="topbar">
-        <div className="topbar-logo">
-          <img src={logoImg} alt="PhantomFix" />
-          <span className="topbar-logo-name">PhantomFix</span>
-        </div>
-
-        <div className="topbar-info">
-          {relatorio.repositorio && (
-            <div className="topbar-chip">
-              <span className="topbar-chip-icon">⌗</span>
-              <span>repo: <strong>{relatorio.repositorio}</strong></span>
-            </div>
-          )}
-          {relatorio.processado_em && (
-            <div className="topbar-chip">
-              <span className="topbar-chip-icon">📅</span>
-              <span>{formatarData(relatorio.processado_em)}</span>
-            </div>
-          )}
-          {onVerHistorico && (
-            <button className="topbar-chip topbar-chip-btn" onClick={onVerHistorico}>
-              Ver outros scans ⌄
-            </button>
-          )}
-        </div>
-
-        <div className="topbar-actions">
-          {onSair && (
-            <button className="btn-sair" onClick={onSair}>Sair</button>
-          )}
-        </div>
-      </header>
+      <Topbar
+        repositorio={relatorio.repositorio}
+        processadoEm={relatorio.processado_em || relatorio.analisado_em}
+        scanState={scanState}
+        spiritAberto={spiritAberto}
+        onToggleSpirit={onToggleSpirit}
+        onVerHistorico={onVerHistorico}
+        onAbrirPipeline={onAbrirPipeline}
+        onSair={onSair}
+      />
 
       {/* ── Main ── */}
       <main className="main-content">
