@@ -33,6 +33,7 @@ function formatarData(iso) {
   return new Date(iso).toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo"
   });
 }
 
@@ -49,14 +50,19 @@ function VulnLinha({ vuln }) {
 
   return (
     <>
-      <div className={`vuln-linha ${aberto ? "aberta" : ""}`} onClick={() => setAberto(!aberto)}>
-        <span className={`vuln-linha-dot sev-${sev.classe}`} />
-        <span className={`vuln-linha-sev sev-${sev.classe}`}>{sev.label}</span>
-        <span className="vuln-linha-tipo">{tipo}</span>
-        <span className="vuln-linha-arquivo">{arquivoDisplay}</span>
-        {vuln.linha && <span className="vuln-linha-linha">L{vuln.linha}</span>}
-        <span className={`vuln-linha-chevron ${aberto ? "aberto" : ""}`}>›</span>
-      </div>
+
+
+<div className={`vuln-linha ${aberto ? "aberta" : ""}`} onClick={() => setAberto(!aberto)}>
+  <span className={`vuln-linha-sev sev-${sev.classe}`}>
+    <span className={`vuln-linha-dot sev-${sev.classe}`} />
+    {sev.label}
+  </span>
+  <span className="vuln-linha-tipo">{tipo}</span>
+  <span className="vuln-linha-arquivo">{arquivoDisplay}</span>
+  {vuln.linha && <span className="vuln-linha-linha">L{vuln.linha}</span>}
+  <span className={`vuln-linha-chevron ${aberto ? "aberto" : ""}`}>›</span>
+</div>
+
 
       {aberto && (
         <div className="vuln-linha-detalhe">
@@ -142,6 +148,7 @@ export default function ResultsView({ relatorio, onVerHistorico, onSair }) {
       <header className="topbar">
         <div className="topbar-logo">
           <img src={logoImg} alt="PhantomFix" />
+          <span className="topbar-logo-name">PhantomFix</span>
         </div>
 
         <div className="topbar-info">
@@ -196,7 +203,7 @@ export default function ResultsView({ relatorio, onVerHistorico, onSair }) {
 
           <div className="metrica-grande">
             <div className="metrica-grande-header">
-              <span className="metrica-grande-icone">🐛</span>
+              <span className="metrica-grande-icone">⚠️</span>
               <span className="metrica-grande-titulo">Vulnerabilidades</span>
             </div>
             <div className="metrica-grande-valor">{total}</div>

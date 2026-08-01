@@ -551,6 +551,12 @@ button { font-family: var(--font-body); cursor: pointer; }
   font-size: 14px;
 }
 
+.spirit-logo { 
+  width: 28px; 
+  height: auto; 
+  object-fit: contain; 
+}
+
 .spirit-status {
   display: flex;
   align-items: center;

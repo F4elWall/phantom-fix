@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { perguntarSpirit } from "../api";
+import spiritimg from "../assets/spirit-avatar.png";
 
 const SUGESTOES = [
   { icone: "💡", texto: "Por que estes 3 são prioritários?" },
@@ -59,7 +60,7 @@ export default function SpiritChat() {
     <aside className="spirit-panel">
       <div className="spirit-header">
         <div className="spirit-titulo">
-          <div className="spirit-icon">🤖</div>
+          <img src={spiritimg} alt="SPIRIT" className="spirit-logo" />
           SPIRIT AI
         </div>
         <div className="spirit-status">

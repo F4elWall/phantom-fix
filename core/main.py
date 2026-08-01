@@ -49,6 +49,25 @@ _status_jobs: dict[str, dict] = {}
 _ultimo_resultado: dict | None = None
 _ultimo_protocolo: str | None = None
 
+def carregar_ultimo_resultado_do_disco():
+    global _ultimo_resultado, _ultimo_protocolo
+    if not RESULTADOS_DIR.exists():
+        return
+    pastas = sorted(
+        (p for p in RESULTADOS_DIR.iterdir() if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    for pasta in pastas:
+        relatorio = pasta / "relatorio.json"
+        if relatorio.exists():
+            _ultimo_resultado = json.loads(relatorio.read_text(encoding="utf-8"))
+            _ultimo_protocolo = pasta.name
+            print(f"[Core] Resultado restaurado: {pasta.name}")
+            return
+
+
+carregar_ultimo_resultado_do_disco()
 
 def carregar_resultado(protocolo: str | None = None) -> dict | None:
     global _ultimo_resultado, _ultimo_protocolo
