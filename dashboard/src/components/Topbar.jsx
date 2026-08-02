@@ -73,7 +73,7 @@ export default function Topbar({
       </div>
 
       <div className="topbar-actions">
-        <div className="topbar-user">admin ▾</div>
+        <div className="topbar-user">{localStorage.getItem("user_nome") || "Usuário"} ▾</div>
         <button
           type="button"
           className={`btn-spirit-toggle ${spiritAberto ? "ativo" : ""}`}
