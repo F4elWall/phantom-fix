@@ -197,6 +197,15 @@ def link_client(body: LinkClientBody):
     return {"ok": True, "mensagem": "Client vinculado com sucesso"}
 
 
+@app.get("/auth/me-by-token")
+def me_by_token(token: str):
+    """Chamado pelo executável para puxar o nome da conta após vincular."""
+    usuario = db.buscar_usuario_por_token(token)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Token não encontrado")
+    return {"nome": usuario["nome"], "email": usuario["email"]}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ROTA PRINCIPAL — recebe o .zip do cliente (autenticado por token)
 # ══════════════════════════════════════════════════════════════════════════════
