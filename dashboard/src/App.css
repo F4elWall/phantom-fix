@@ -1812,3 +1812,54 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .wlc-acessar-btn:hover { background: rgba(139,92,246,.1); }
 .wlc-acessar-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Home pipeline status ─────────────────────────────────── */
+.tela-home {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; gap: 12px;
+  background: var(--void);
+  padding: 40px;
+}
+.home-logo { font-size: 56px; margin-bottom: 8px; }
+.tela-home h2 {
+  font-family: var(--font-display); font-size: 28px;
+  color: var(--ink); margin-bottom: 4px;
+}
+
+.home-pipeline {
+  margin-top: 32px;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 28px 36px;
+  width: 100%; max-width: 480px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.home-pipeline-repo {
+  font-family: var(--font-display); font-size: 15px;
+  color: var(--ink); font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.home-pipeline-icon { color: var(--ecto); }
+
+.home-pipeline-barra-bg {
+  width: 100%; height: 6px;
+  background: var(--surface-2);
+  border-radius: 99px; overflow: hidden;
+}
+.home-pipeline-barra {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--violet), var(--ecto));
+  transition: width .6s ease;
+}
+.home-pipeline-barra.barra-erro {
+  background: var(--alert);
+}
+
+.home-pipeline-label {
+  font-size: 14px; color: var(--ink-dim); font-weight: 500;
+}
+.home-pipeline-dica {
+  font-size: 12px; color: var(--ink-dim); opacity: .6;
+}
