@@ -1918,10 +1918,11 @@ button { font-family: var(--font-body); cursor: pointer; }
 
 /* Hero */
 .landing-hero {
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: 1fr;
   align-items: center; gap: 60px;
-  padding: 80px 60px 60px;
-  max-width: 1200px; margin: 0 auto; width: 100%;
+  padding: 100px 60px 60px;
+  max-width: 700px; margin: 0 auto; width: 100%;
+  text-align: center;
 }
 
 .landing-hero-titulo {
@@ -1936,45 +1937,15 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .landing-hero-desc {
   font-size: 16px; color: var(--ink-dim); line-height: 1.7;
-  margin-bottom: 32px; max-width: 440px;
+  margin-bottom: 32px; max-width: 100%;
 }
-.landing-hero-btns { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+.landing-hero-btns { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
 
 .landing-hero-chips {
-  display: flex; gap: 20px; flex-wrap: wrap;
+  display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
 }
 .landing-hero-chips span {
   font-size: 13px; color: var(--ink-dim);
-}
-
-/* Orb */
-.landing-hero-orb {
-  position: relative; display: flex;
-  align-items: center; justify-content: center;
-  height: 340px;
-}
-.landing-orb-inner {
-  width: 140px; height: 140px; border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, rgba(139,92,246,.3), rgba(9,11,18,.8));
-  border: 1.5px solid rgba(139,92,246,.4);
-  display: flex; align-items: center; justify-content: center;
-  position: relative; z-index: 2;
-  box-shadow: 0 0 60px rgba(139,92,246,.25);
-}
-.landing-orb-logo { width: 72px; height: 72px; }
-
-.landing-orb-ring {
-  position: absolute; border-radius: 50%;
-  border: 1px solid rgba(139,92,246,.15);
-  animation: orb-pulse 4s ease-in-out infinite;
-}
-.landing-orb-ring-1 { width: 200px; height: 200px; animation-delay: 0s; }
-.landing-orb-ring-2 { width: 280px; height: 280px; animation-delay: .8s; }
-.landing-orb-ring-3 { width: 360px; height: 360px; animation-delay: 1.6s; }
-
-@keyframes orb-pulse {
-  0%, 100% { opacity: .4; transform: scale(1); }
-  50%       { opacity: .15; transform: scale(1.04); }
 }
 
 /* Features */
