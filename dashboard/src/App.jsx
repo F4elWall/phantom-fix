@@ -10,6 +10,7 @@ import PipelineView from "./components/PipelineView";
 import HistoricoView from "./components/HistoricoView";
 import { detectarScanAtivo } from "./api";
 import "./App.css";
+import { detectarScanAtivo, buscarRelatorio } from "./api";
 
 /**
  * Telas possíveis:
@@ -67,6 +68,15 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
     const id = setInterval(tick, 4000);
     return () => { cancel = true; clearInterval(id); };
   }, [logado]);
+
+  // ── Recarrega relatório quando scan conclui ──────────────────────────────
+  useEffect(() => {
+    if (scanState.tipo === "concluido" && tela === "results") {
+      buscarRelatorio().then((rel) => {
+        if (rel) setRelatorio(rel);
+      }).catch(() => {});
+    }
+  }, [scanState.tipo]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
