@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Landing from "./components/Landing";
 import Login from "./components/Login";
 import SignUp from "./components/SignUp";
 import Welcome from "./components/Welcome";
@@ -34,7 +35,7 @@ const dadosSalvos = sessaoSalva() ? {
 } : null;
 
 const [tela, setTela] = useState(
-  !dadosSalvos ? "auth" :
+  !dadosSalvos ? "landing" :
   !dadosSalvos.client_linked ? "welcome" : "home"
 );
 const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
@@ -76,7 +77,7 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
     setRelatorio(null);
     setProtocoloPipeline(null);
     setUsuarioAuth(null);
-    setTela("auth");
+    setTela("landing");
   }
 
 function onLogin(dados) {
@@ -114,11 +115,21 @@ function onCriouConta(dados) {
 
   // ── Roteamento ────────────────────────────────────────────────────────────
 
+  if (tela === "landing") {
+    return (
+      <Landing
+        onEntrar={() => setTela("auth")}
+        onCriarConta={() => setTela("signup")}
+      />
+    );
+  }
+
   if (tela === "auth") {
     return (
       <Login
         onLogin={onLogin}
         onIrParaSignup={() => setTela("signup")}
+        onVoltar={() => setTela("landing")}
       />
     );
   }
@@ -128,6 +139,7 @@ function onCriouConta(dados) {
       <SignUp
         onCriouConta={onCriouConta}
         onIrParaLogin={() => setTela("auth")}
+        onVoltar={() => setTela("landing")}
       />
     );
   }
