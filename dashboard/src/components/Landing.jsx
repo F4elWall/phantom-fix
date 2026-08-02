@@ -4,7 +4,7 @@ const FEATURES = [
   {
     icon: "🛡️",
     titulo: "Segurança em primeiro lugar",
-    desc: "Seu código é enviado de forma segura e mantido garantimos apenas apenas seu tempo necessário para a análise.",
+    desc: "Seu código é enviado de forma segura e mantido apenas o tempo necessário para a análise.",
   },
   {
     icon: "🤖",
@@ -14,7 +14,7 @@ const FEATURES = [
   {
     icon: "🔧",
     titulo: "Sugestões de correções automáticas",
-    desc: "Receba recomendações práticas e objetivas para corrigir inutilidades e acelerar seu desenvolvimento.",
+    desc: "Receba recomendações práticas e objetivas para corrigir vulnerabilidades e acelerar seu desenvolvimento.",
   },
   {
     icon: "⚖️",
@@ -26,6 +26,7 @@ const FEATURES = [
 export default function Landing({ onEntrar, onCriarConta }) {
   return (
     <div className="landing">
+
       {/* ── Topbar ── */}
       <nav className="landing-nav">
         <div className="landing-nav-logo">
@@ -63,6 +64,11 @@ export default function Landing({ onEntrar, onCriarConta }) {
           </div>
         </div>
 
+        <div className="landing-hero-orb">
+          <img src={logo} alt="PhantomFix" className="landing-hero-img" />
+        </div>
+      </section>
+
       {/* ── Features ── */}
       <section className="landing-features">
         {FEATURES.map((f) => (
@@ -83,7 +89,7 @@ export default function Landing({ onEntrar, onCriarConta }) {
             <span className="landing-hero-destaque">compliance.</span>
           </h2>
           <p className="landing-spirit-desc">
-            Converse com o Spirit AI e entenda o impacto de dados risctios,
+            Converse com o Spirit AI e entenda o impacto de dados críticos,
             orientações sobre os frameworks e tome decisões com confiança.
           </p>
           <button className="landing-btn-ghost landing-spirit-btn" onClick={onCriarConta}>
@@ -98,7 +104,7 @@ export default function Landing({ onEntrar, onCriarConta }) {
           <div className="landing-chat-bubble landing-chat-spirit">
             <span className="landing-chat-tag">Spirit AI</span>
             Sim. Esse risco pode resultar em exposição de dados pessoais sem
-            controle controlado, o que pode violar o artigo 46 da LGPD.
+            controle adequado, o que pode violar o artigo 46 da LGPD.
             <div className="landing-chat-rec">
               <p className="landing-chat-rec-titulo">Recomendações:</p>
               <p>✓ Revise o tratamento de dados pessoais neste fluxo</p>
@@ -118,6 +124,7 @@ export default function Landing({ onEntrar, onCriarConta }) {
           <a href="#">Contato</a>
         </div>
       </footer>
+
     </div>
   );
 }
