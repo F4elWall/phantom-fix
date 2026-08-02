@@ -19,7 +19,7 @@ info() { echo -e "${CIANO}➤  $1${RESET}"; }
 erro() { echo -e "${VERMELHO}❌ $1${RESET}"; }
 
 # Carrega variáveis de ambiente
-source ~/.phantom-fix.env
+source /home/coreuser/.phantom-fix.env
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
@@ -131,4 +131,4 @@ echo ""
 # ── Tail dos logs unificados ──────────────────────────────────────────────────
 trap "echo ''; info 'Encerrando...'; kill $ZAP_PID $SPIRIT_PID $GHOST_PID $CORE_PID 2>/dev/null; exit 0" INT
 
-tail -f "$LOG_DIR/core.log" "$LOG_DIR/spirit.log" "$LOG_DIR/ghost.log" "$LOG_DIR/zap.log"
+wait
