@@ -132,11 +132,18 @@ function onCriouConta(dados) {
     );
   }
 
-  if (tela === "welcome" && usuarioAuth) {
+  if (tela === "welcome") {
+    // usuarioAuth pode ser null após F5 — monta um objeto mínimo do localStorage
+    const usuarioWelcome = usuarioAuth || {
+      token: localStorage.getItem("user_token") || "",
+      nome:  localStorage.getItem("user_nome")  || "Usuário",
+      client_linked: false,
+    };
     return (
       <Welcome
-        usuario={usuarioAuth}
+        usuario={usuarioWelcome}
         onAcessarDashboard={onAcessarDashboard}
+        onSair={sair}
       />
     );
   }
