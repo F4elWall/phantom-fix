@@ -21,6 +21,11 @@ erro() { echo -e "${VERMELHO}❌ $1${RESET}"; }
 # Carrega variáveis de ambiente
 source /home/coreuser/.phantom-fix.env
 
+# Atualiza o código antes de subir
+info "Atualizando código..."
+git pull origin main
+ok "Código atualizado"
+
 echo ""
 echo "╔══════════════════════════════════════════╗"
 echo "║         PhantomFix — Iniciando...        ║"
