@@ -2,7 +2,7 @@ import { useState } from "react";
 import logo from "../assets/logo.png";
 import { regenToken, checkLink } from "../api";
 
-const EXE_URL = "https://github.com/F4elWall/phantom-fix/releases/tag/phantom-fix.exe"; // substituir pela URL real do .exe
+const EXE_URL = "https://github.com/F4elWall/phantom-fix/releases/download/phantom-fix.exe/PhantomFix.exe"; // substituir pela URL real do .exe
 
 export default function Welcome({ usuario, onAcessarDashboard }) {
   const [token, setToken] = useState(usuario?.token || localStorage.getItem("user_token") || "");
