@@ -1863,3 +1863,193 @@ button { font-family: var(--font-body); cursor: pointer; }
 .home-pipeline-dica {
   font-size: 12px; color: var(--ink-dim); opacity: .6;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Landing Page
+   ══════════════════════════════════════════════════════════════ */
+
+.landing {
+  min-height: 100vh;
+  background: var(--void);
+  display: flex; flex-direction: column;
+}
+
+/* Nav */
+.landing-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 60px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(9,11,18,.85);
+  backdrop-filter: blur(12px);
+}
+.landing-nav-logo {
+  display: flex; align-items: center; gap: 10px;
+}
+.landing-nav-logo img { width: 36px; height: 36px; }
+.landing-nav-logo span {
+  font-family: var(--font-display); font-size: 20px; color: var(--ink);
+}
+.landing-nav-logo strong { color: var(--violet); }
+
+.landing-nav-actions { display: flex; align-items: center; gap: 12px; }
+
+/* Botões */
+.landing-btn-ghost {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,.2);
+  border-radius: 8px; color: var(--ink);
+  font-size: 14px; font-weight: 600;
+  padding: 9px 20px; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.landing-btn-ghost:hover { border-color: var(--violet); color: var(--violet); }
+
+.landing-btn-primary {
+  background: var(--violet);
+  border: none; border-radius: 8px; color: white;
+  font-size: 14px; font-weight: 700;
+  padding: 9px 22px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: opacity .15s, transform .15s;
+}
+.landing-btn-primary:hover { opacity: .88; transform: translateY(-1px); }
+.landing-btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 10px; }
+
+/* Hero */
+.landing-hero {
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: center; gap: 60px;
+  padding: 80px 60px 60px;
+  max-width: 1200px; margin: 0 auto; width: 100%;
+}
+
+.landing-hero-titulo {
+  font-family: var(--font-display);
+  font-size: 52px; font-weight: 700; line-height: 1.15;
+  color: var(--ink); margin-bottom: 20px;
+}
+.landing-hero-destaque {
+  background: linear-gradient(135deg, var(--violet) 0%, var(--ecto) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.landing-hero-desc {
+  font-size: 16px; color: var(--ink-dim); line-height: 1.7;
+  margin-bottom: 32px; max-width: 440px;
+}
+.landing-hero-btns { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+
+.landing-hero-chips {
+  display: flex; gap: 20px; flex-wrap: wrap;
+}
+.landing-hero-chips span {
+  font-size: 13px; color: var(--ink-dim);
+}
+
+/* Orb */
+.landing-hero-orb {
+  position: relative; display: flex;
+  align-items: center; justify-content: center;
+  height: 340px;
+}
+.landing-orb-inner {
+  width: 140px; height: 140px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(139,92,246,.3), rgba(9,11,18,.8));
+  border: 1.5px solid rgba(139,92,246,.4);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 2;
+  box-shadow: 0 0 60px rgba(139,92,246,.25);
+}
+.landing-orb-logo { width: 72px; height: 72px; }
+
+.landing-orb-ring {
+  position: absolute; border-radius: 50%;
+  border: 1px solid rgba(139,92,246,.15);
+  animation: orb-pulse 4s ease-in-out infinite;
+}
+.landing-orb-ring-1 { width: 200px; height: 200px; animation-delay: 0s; }
+.landing-orb-ring-2 { width: 280px; height: 280px; animation-delay: .8s; }
+.landing-orb-ring-3 { width: 360px; height: 360px; animation-delay: 1.6s; }
+
+@keyframes orb-pulse {
+  0%, 100% { opacity: .4; transform: scale(1); }
+  50%       { opacity: .15; transform: scale(1.04); }
+}
+
+/* Features */
+.landing-features {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  padding: 0 60px 80px;
+  max-width: 1200px; margin: 0 auto; width: 100%;
+}
+.landing-feature-card {
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px; padding: 24px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: border-color .2s;
+}
+.landing-feature-card:hover { border-color: rgba(139,92,246,.3); }
+.landing-feature-icon { font-size: 28px; }
+.landing-feature-titulo { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--ink); }
+.landing-feature-desc { font-size: 13px; color: var(--ink-dim); line-height: 1.6; }
+
+/* Spirit */
+.landing-spirit {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+  align-items: center;
+  background: var(--surface);
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 80px 60px;
+}
+.landing-spirit-label {
+  font-size: 12px; font-weight: 700; letter-spacing: .1em;
+  color: var(--violet); margin-bottom: 12px;
+}
+.landing-spirit-titulo {
+  font-family: var(--font-display); font-size: 36px; font-weight: 700;
+  color: var(--ink); line-height: 1.2; margin-bottom: 16px;
+}
+.landing-spirit-desc {
+  font-size: 15px; color: var(--ink-dim); line-height: 1.7; margin-bottom: 28px;
+}
+.landing-spirit-btn { display: inline-flex; align-items: center; gap: 6px; }
+
+.landing-spirit-chat {
+  display: flex; flex-direction: column; gap: 14px;
+}
+.landing-chat-bubble {
+  border-radius: 12px; padding: 14px 18px;
+  font-size: 14px; line-height: 1.6;
+  max-width: 90%;
+}
+.landing-chat-user {
+  background: var(--violet);
+  color: white; align-self: flex-end;
+  border-radius: 12px 12px 4px 12px;
+}
+.landing-chat-spirit {
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--ink); align-self: flex-start;
+  border-radius: 12px 12px 12px 4px;
+}
+.landing-chat-tag {
+  display: block; font-size: 11px; font-weight: 700;
+  color: var(--violet); margin-bottom: 6px; letter-spacing: .05em;
+}
+.landing-chat-rec { margin-top: 10px; }
+.landing-chat-rec-titulo { font-weight: 600; margin-bottom: 4px; }
+.landing-chat-rec p { font-size: 13px; color: var(--ink-dim); }
+
+/* Footer */
+.landing-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 60px;
+  font-size: 13px; color: var(--ink-dim);
+}
+.landing-footer-links { display: flex; gap: 24px; }
+.landing-footer-links a { color: var(--ink-dim); text-decoration: none; transition: color .15s; }
+.landing-footer-links a:hover { color: var(--ink); }
