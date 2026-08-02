@@ -27,8 +27,17 @@ function sessaoSalva() {
 
 export default function App() {
   // Se já havia sessão salva, pula direto pro dashboard
-  const [tela, setTela] = useState(sessaoSalva() ? "home" : "auth");
-  const [usuarioAuth, setUsuarioAuth] = useState(null); // dados do signup/login
+const dadosSalvos = sessaoSalva() ? {
+  token: localStorage.getItem("user_token"),
+  nome: localStorage.getItem("user_nome"),
+  client_linked: localStorage.getItem("client_linked") === "true",
+} : null;
+
+const [tela, setTela] = useState(
+  !dadosSalvos ? "auth" :
+  !dadosSalvos.client_linked ? "welcome" : "home"
+);
+const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
   const [relatorio, setRelatorio] = useState(null);
   const [protocoloPipeline, setProtocoloPipeline] = useState(null);
   const [scanState, setScanState] = useState({ tipo: "concluido" });
@@ -70,15 +79,17 @@ export default function App() {
     setTela("auth");
   }
 
-  function onLogin(dados) {
-    setUsuarioAuth(dados);
-    setTela("home");
-  }
+function onLogin(dados) {
+  setUsuarioAuth(dados);
+  localStorage.setItem("client_linked", dados.client_linked ? "true" : "false");
+  setTela(dados.client_linked ? "home" : "welcome");
+}
 
-  function onCriouConta(dados) {
-    setUsuarioAuth(dados);
-    setTela("welcome");
-  }
+function onCriouConta(dados) {
+  setUsuarioAuth(dados);
+  localStorage.setItem("client_linked", "false");
+  setTela("welcome");
+}
 
   function onAcessarDashboard() {
     setTela("home");
