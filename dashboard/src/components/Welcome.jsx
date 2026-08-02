@@ -5,7 +5,7 @@ import { regenToken, checkLink } from "../api";
 const EXE_URL = "#"; // substituir pela URL real do .exe
 
 export default function Welcome({ usuario, onAcessarDashboard }) {
-  const [token, setToken] = useState(usuario.token);
+  const [token, setToken] = useState(usuario?.token || localStorage.getItem("user_token") || "");
   const [popupAberto, setPopupAberto] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [regenando, setRegenando] = useState(false);
@@ -34,9 +34,10 @@ export default function Welcome({ usuario, onAcessarDashboard }) {
     setVerificando(true);
     try {
       const dados = await checkLink();
-      if (dados.client_linked) {
-        onAcessarDashboard();
-      } else {
+if (dados.client_linked) {
+  localStorage.setItem("client_linked", "true");
+  onAcessarDashboard();
+} else {
         setErroLink("Client ainda não vinculado. Cole o token no executável e tente novamente.");
       }
     } catch {
