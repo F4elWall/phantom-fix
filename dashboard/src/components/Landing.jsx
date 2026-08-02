@@ -63,17 +63,6 @@ export default function Landing({ onEntrar, onCriarConta }) {
           </div>
         </div>
 
-        {/* Orb decorativo */}
-        <div className="landing-hero-orb" aria-hidden="true">
-          <div className="landing-orb-inner">
-            <img src={logo} alt="" className="landing-orb-logo" />
-          </div>
-          <div className="landing-orb-ring landing-orb-ring-1" />
-          <div className="landing-orb-ring landing-orb-ring-2" />
-          <div className="landing-orb-ring landing-orb-ring-3" />
-        </div>
-      </section>
-
       {/* ── Features ── */}
       <section className="landing-features">
         {FEATURES.map((f) => (
