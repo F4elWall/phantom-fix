@@ -8,7 +8,6 @@ import ResultsView from "./components/ResultsView";
 import SpiritChat from "./components/SpiritChat";
 import PipelineView from "./components/PipelineView";
 import HistoricoView from "./components/HistoricoView";
-import { detectarScanAtivo } from "./api";
 import "./App.css";
 import { detectarScanAtivo, buscarRelatorio } from "./api";
 
