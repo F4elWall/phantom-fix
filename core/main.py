@@ -253,6 +253,12 @@ def status_scan(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
         raise HTTPException(status_code=403, detail="Acesso negado")
     return job
 
+@app.get("/scan/ativo")
+def scan_ativo(usuario: dict = Depends(usuario_autenticado)):
+    for protocolo, job in _status_jobs.items():
+        if job.get("user_id") == usuario["id"] and job.get("status") not in ["concluido", "erro"]:
+            return {"protocolo": protocolo, **job}
+    return None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE
