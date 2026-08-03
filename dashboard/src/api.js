@@ -144,18 +144,13 @@ export async function statusCore() {
 
 export async function detectarScanAtivo() {
   try {
-    const data = await listarResultados();
-    const lista = data.resultados || [];
-    for (const item of [...lista].reverse()) {
-      const job = await statusScan(item.protocolo);
-      if (job && job.status && !["concluido", "erro"].includes(job.status)) {
-        return { protocolo: item.protocolo, ...job };
-      }
-    }
+    const resp = await fetch(`${CORE_URL}/scan/ativo`, { headers: authHeaders() });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data;
   } catch {
-    /* ignore */
+    return null;
   }
-  return null;
 }
 
 export async function perguntarSpirit(pergunta) {
