@@ -153,11 +153,11 @@ export async function detectarScanAtivo() {
   }
 }
 
-export async function perguntarSpirit(pergunta) {
+export async function perguntarSpirit(pergunta, relatorio = null) {
   const resp = await fetch(`${SPIRIT_URL}/perguntar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pergunta }),
+    body: JSON.stringify({ pergunta, relatorio }),
   });
   if (!resp.ok) throw new Error("Spirit não respondeu");
   return resp.json();

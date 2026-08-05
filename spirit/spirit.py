@@ -4,7 +4,7 @@ Agente que usa Groq (llama-3.3-70b-versatile) com texto extraído dos PDFs
 de legislação (LGPD, ISO 27001) para responder perguntas sobre impacto
 real de vulnerabilidades.
 
-POST /perguntar  { pergunta } → { resposta }
+POST /perguntar  { pergunta, relatorio? } → { resposta }
 GET  /saude               → status dos PDFs e cache
 """
 
@@ -27,7 +27,7 @@ LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
 client_groq = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # ── App ────────────────────────────────────────────────────────────────────────
-app = FastAPI(title="PhantomFix Spirit", version="0.3.0")
+app = FastAPI(title="PhantomFix Spirit", version="0.3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,11 +57,13 @@ DIRETRIZES:
 5. Dê exemplos concretos: "um atacante poderia fazer X, acessando Y, causando Z"
 6. Seja direto — vá ao ponto que importa para o negócio, sem enrolar
 7. Tom: profissional, humano e construtivo
+8. Quando houver relatório de vulnerabilidades no contexto, BASE sua resposta nelas —
+   cite tipos, scores e arquivos quando fizer sentido. Não diga que não tem acesso ao relatório
+   se o relatório estiver presente no contexto.
 
 Responda sempre em português brasileiro."""
 
 
-# ── Extração de texto dos PDFs ─────────────────────────────────────────────────
 def extrair_texto_pdf(caminho: Path) -> str:
     try:
         import pypdf
@@ -69,7 +71,6 @@ def extrair_texto_pdf(caminho: Path) -> str:
         texto = "\n".join(
             page.extract_text() or "" for page in reader.pages
         )
-        # Limita a 8000 chars por PDF pra não estourar o contexto
         return texto[:8000]
     except Exception as e:
         print(f"[Spirit] ✗ Erro ao extrair {caminho.name}: {e}")
@@ -103,7 +104,6 @@ async def carregar_legislacao():
     print(f"[Spirit] Legislação carregada — Spirit no ar 👻")
 
 
-# ── Cache do relatório ─────────────────────────────────────────────────────────
 async def obter_relatorio() -> dict | None:
     global _relatorio_cache
     try:
@@ -120,15 +120,14 @@ async def obter_relatorio() -> dict | None:
     return _relatorio_cache
 
 
-# ── Model ──────────────────────────────────────────────────────────────────────
 class PerguntaRequest(BaseModel):
     pergunta: str
+    relatorio: dict | None = None
 
 
-# ── Endpoints ──────────────────────────────────────────────────────────────────
 @app.get("/")
 def raiz():
-    return {"status": "PhantomFix Spirit funcionando", "versao": "0.3.0"}
+    return {"status": "PhantomFix Spirit funcionando", "versao": "0.3.1"}
 
 
 @app.get("/saude")
@@ -146,7 +145,14 @@ async def perguntar(body: PerguntaRequest):
     if not client_groq:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY não configurada")
 
-    relatorio = await obter_relatorio()
+    # Prioriza o relatório enviado pelo Dashboard
+    relatorio = body.relatorio if body.relatorio else await obter_relatorio()
+
+    if relatorio and isinstance(relatorio.get("vulnerabilidades"), list):
+        relatorio = {
+            **relatorio,
+            "vulnerabilidades": relatorio["vulnerabilidades"][:15],
+        }
 
     contexto_relatorio = (
         "\n\n=== Relatório de vulnerabilidades da aplicação ===\n"
