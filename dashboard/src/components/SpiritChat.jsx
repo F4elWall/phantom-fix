@@ -8,7 +8,7 @@ const SUGESTOES = [
   { icone: "🔧", texto: "Gerar patch de correção" },
 ];
 
-export default function SpiritChat() {
+export default function SpiritChat({ relatorio }) {
   const [mensagens, setMensagens] = useState([
     {
       autor: "spirit",
@@ -33,7 +33,7 @@ export default function SpiritChat() {
     setCarregando(true);
 
     try {
-      const resposta = await perguntarSpirit(q);
+      const resposta = await perguntarSpirit(q, relatorio ?? null);
       setMensagens((m) => [
         ...m,
         { autor: "spirit", texto: resposta.resposta },
