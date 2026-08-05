@@ -184,7 +184,7 @@ function onCriouConta(dados) {
           onSair={sair}
           onAbrirPipeline={abrirPipeline}
         />
-        {spiritAberto && <SpiritChat />}
+        {spiritAberto && <SpiritChat relatorio={relatorio} />}
       </div>
     );
   }
@@ -201,7 +201,7 @@ function onCriouConta(dados) {
           onVoltar={() => setTela(relatorio ? "results" : "home")}
           onSair={sair}
         />
-        {spiritAberto && <SpiritChat />}
+        {spiritAberto && <SpiritChat relatorio={relatorio} />}
       </div>
     );
   }
@@ -225,7 +225,7 @@ function onCriouConta(dados) {
         onAbrirPipeline={abrirPipeline}
         onSair={sair}
       />
-      {spiritAberto && <SpiritChat />}
+      {spiritAberto && <SpiritChat relatorio={relatorio} />}
     </div>
   );
 }
