@@ -14,6 +14,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="$ROOT/logs"
 mkdir -p "$LOG_DIR"
 
+# ── PATH (Semgrep e bins do usuário) ──────────────────────────────────────────
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export HOME="${HOME:-/home/coreuser}"
+
 ok()   { echo -e "${VERDE}✅ $1${RESET}"; }
 info() { echo -e "${CIANO}➤  $1${RESET}"; }
 erro() { echo -e "${VERMELHO}❌ $1${RESET}"; }
