@@ -19,7 +19,7 @@ import customtkinter as ctk
 from PIL import Image
 
 # ── URLs ──────────────────────────────────────────────────────────────────────
-CORE_URL = os.getenv("PHANTOMFIX_CORE_URL", "https://phantom-fix.duckdns.org/api/scan")
+CORE_URL = os.getenv("PHANTOMFIX_CORE_URL", "https://phantom-fix.southafricanorth.cloudapp.azure.com/api/scan")
 LINK_URL = CORE_URL.replace("/scan", "/auth/link-client")
 ME_URL   = CORE_URL.replace("/scan", "/auth/me-by-token")   # rota que vamos criar
 
