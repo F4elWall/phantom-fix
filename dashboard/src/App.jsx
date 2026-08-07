@@ -209,7 +209,11 @@ function onCriouConta(dados) {
   if (!relatorio || tela === "home") {
     return (
       <div className="app-shell">
-        <Home onRelatorioCarregado={onRelatorioCarregado} />
+      <Home
+        onRelatorioCarregado={onRelatorioCarregado}
+        onAbrirPipeline={abrirPipeline}
+        onSair={sair}
+      />
       </div>
     );
   }
