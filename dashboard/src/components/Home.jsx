@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
-import { buscarRelatorio, statusCore } from "../api";
+import logo from "../assets/logo.png";
+import { buscarRelatorio, detectarScanAtivo } from "../api";
 
 const ETAPAS = {
-  recebido:          { label: "Repositório recebido",       pct: 10 },
-  extraindo:         { label: "Extraindo arquivos...",       pct: 20 },
-  escaneando:        { label: "Escaneando vulnerabilidades...", pct: 40 },
-  analisando:        { label: "Analisando com IA...",        pct: 65 },
-  priorizado:        { label: "Priorizando resultados...",   pct: 75 },
-  corrigindo:        { label: "Gerando correções (Ghost)...", pct: 88 },
-  concluido:         { label: "Análise concluída!",          pct: 100 },
-  erro:              { label: "Erro na análise",             pct: 100 },
+  recebido:  { label: "Repositório recebido",          pct: 10 },
+  extraindo: { label: "Extraindo arquivos...",           pct: 20 },
+  escaneando:{ label: "Escaneando vulnerabilidades...", pct: 40 },
+  analisando:{ label: "Analisando com IA...",           pct: 65 },
+  priorizado:{ label: "Priorizando resultados...",      pct: 75 },
+  corrigindo:{ label: "Gerando correções (Ghost)...",   pct: 88 },
+  concluido: { label: "Análise concluída!",             pct: 100 },
+  erro:      { label: "Erro na análise",                pct: 100 },
 };
 
-export default function Home({ onRelatorioCarregado }) {
-  const [status, setStatus]       = useState("carregando");
-  const [mensagem, setMensagem]   = useState("Buscando último relatório...");
-  const [pipeline, setPipeline]   = useState(null); // dados do scan ativo
+export default function Home({ onRelatorioCarregado, onAbrirPipeline, onSair }) {
+  const [status, setStatus]   = useState("carregando");
+  const [pipeline, setPipeline] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -25,19 +25,11 @@ export default function Home({ onRelatorioCarregado }) {
       try {
         const dados = await buscarRelatorio();
         if (cancelado) return;
-        if (dados) {
-          onRelatorioCarregado(dados);
-          return;
-        }
-        // Sem relatório — verifica se tem scan rodando
+        if (dados) { onRelatorioCarregado(dados); return; }
         setStatus("vazio");
-        setMensagem("Nenhum relatório disponível ainda.");
         iniciarPolling();
       } catch {
-        if (!cancelado) {
-          setStatus("erro");
-          setMensagem("Não foi possível conectar ao Core. Ele está rodando?");
-        }
+        if (!cancelado) setStatus("erro");
       }
     }
 
@@ -45,18 +37,16 @@ export default function Home({ onRelatorioCarregado }) {
       intervalo = setInterval(async () => {
         if (cancelado) return;
         try {
-          const st = await statusCore();
-          if (!st) return;
-
-          if (st.status === "concluido") {
-            clearInterval(intervalo);
-            const rel = await buscarRelatorio();
-            if (rel && !cancelado) onRelatorioCarregado(rel);
-            return;
-          }
-
-          if (st.status && st.status !== "ocioso") {
-            setPipeline(st);
+          const ativo = await detectarScanAtivo();
+          if (ativo && ativo.protocolo) {
+            setPipeline(ativo);
+            if (ativo.status === "concluido") {
+              clearInterval(intervalo);
+              const rel = await buscarRelatorio();
+              if (rel && !cancelado) onRelatorioCarregado(rel);
+            }
+          } else {
+            setPipeline(null);
           }
         } catch { /* ignore */ }
       }, 3000);
@@ -67,23 +57,43 @@ export default function Home({ onRelatorioCarregado }) {
   }, [onRelatorioCarregado]);
 
   const etapa = pipeline ? ETAPAS[pipeline.status] : null;
+  const rodando = pipeline && pipeline.status && !["concluido", "erro"].includes(pipeline.status);
 
   return (
     <div className="tela-home">
-      <div className="home-logo">👻</div>
+      {/* Botão sair no canto */}
+      {onSair && (
+        <button className="home-btn-sair" onClick={onSair}>Sair</button>
+      )}
+
+      <img src={logo} alt="PhantomFix" className="home-logo-img" />
       <h2>PhantomFix Dashboard</h2>
 
-      {!pipeline && (
-        <>
-          <p className={`status-${status}`}>{mensagem}</p>
-          {status === "vazio" && (
-            <p className="dica">Envie um repositório pelo Client desktop e volte aqui.</p>
-          )}
-        </>
+      {!pipeline && status === "carregando" && (
+        <p className="status-carregando">Buscando último relatório...</p>
+      )}
+
+      {!pipeline && status === "erro" && (
+        <p className="status-erro">Não foi possível conectar ao Core. Ele está rodando?</p>
+      )}
+
+      {!pipeline && status === "vazio" && (
+        <div className="home-aguardando">
+          <div className="home-aguardando-dot" />
+          <p className="home-aguardando-label">Aguardando primeira análise</p>
+          <p className="dica">Envie um repositório pelo Client desktop e volte aqui.</p>
+        </div>
       )}
 
       {pipeline && etapa && (
         <div className="home-pipeline">
+          {rodando && (
+            <div className="home-pipeline-badge">
+              <span className="home-pipeline-pulse" />
+              Análise em andamento
+            </div>
+          )}
+
           <p className="home-pipeline-repo">
             <span className="home-pipeline-icon">⌗</span>
             {pipeline.repositorio || "Repositório"}
@@ -100,9 +110,20 @@ export default function Home({ onRelatorioCarregado }) {
             {pipeline.status === "erro" ? "❌" : "⏳"} {etapa.label}
           </p>
 
-          <p className="home-pipeline-dica">
-            Aguarde — o relatório aparecerá automaticamente quando a análise terminar.
-          </p>
+          {rodando && onAbrirPipeline && (
+            <button
+              className="home-pipeline-btn"
+              onClick={() => onAbrirPipeline(pipeline.protocolo)}
+            >
+              Ver Pipeline View →
+            </button>
+          )}
+
+          {!rodando && (
+            <p className="home-pipeline-dica">
+              Aguarde — o relatório aparecerá automaticamente quando a análise terminar.
+            </p>
+          )}
         </div>
       )}
     </div>
