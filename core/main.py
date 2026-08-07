@@ -413,6 +413,7 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
 
     async def com_semaforo(vuln, cliente):
         async with semaforo:
+            await asyncio.sleep(1)
             return await solicitar_correcao(vuln, cliente)
 
     async with httpx.AsyncClient() as cliente:
