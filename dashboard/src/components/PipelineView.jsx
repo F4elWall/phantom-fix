@@ -294,18 +294,16 @@ export default function PipelineView({
               );
             })}
             <span className="arch-arrow">→</span>
-            <div className="arch-branch">
-              {[
-                { id: "sast", label: "SAST" },
-                { id: "dast", label: "DAST" },
-                { id: "secrets", label: "Secrets" },
-                { id: "deps", label: "Deps" },
-              ].map((n) => (
-                <div key={n.id} className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}>
-                  {n.label}
-                </div>
-              ))}
-            </div>
+<div className="arch-branch">
+  {[
+    { id: "sast", label: "SAST" },
+    { id: "dast", label: "DAST" },
+  ].map((n) => (
+    <div key={n.id} className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}>
+      {n.label}
+    </div>
+  ))}
+</div>
             {[
               { id: "ia", label: "AI Correlation" },
               { id: "ghost", label: "Ghost" },
