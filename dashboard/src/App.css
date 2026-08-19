@@ -1348,10 +1348,19 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .arch-flow {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
 }
+
+.arch-arrow {
+  color: var(--ink-dim);
+  font-size: 16px;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
 .arch-node {
   background: var(--surface-2, #1D2133);
   border: 1px solid var(--mist, #262B40);
@@ -1360,6 +1369,8 @@ button { font-family: var(--font-body); cursor: pointer; }
   font-size: 12px;
   font-weight: 600;
   color: var(--ink-dim, #8B90A8);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .arch-node.small { font-size: 11px; padding: 8px 10px; }
 .arch-node.estado-executando {
@@ -1379,11 +1390,12 @@ button { font-family: var(--font-body); cursor: pointer; }
   border-color: var(--alert, #FF6B5E);
   color: var(--alert, #FF6B5E);
 }
+
 .arch-branch {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 4px 0;
+  flex-shrink: 0;
 }
 .arch-legend {
   display: flex;
