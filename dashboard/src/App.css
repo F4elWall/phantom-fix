@@ -2105,3 +2105,46 @@ button { font-family: var(--font-body); cursor: pointer; }
   align-self: flex-start;
 }
 .home-pipeline-btn:hover { background: rgba(139,92,246,.1); }
+
+/* ── Topbar dropdown de perfil ───────────────── */
+.topbar-perfil {
+  position: relative;
+}
+
+.topbar-user {
+  background: none; border: none;
+  font-size: 13px; color: var(--ink-dim);
+  cursor: pointer; padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color .15s, background .15s;
+}
+.topbar-user:hover { color: var(--ink); background: var(--surface-2); }
+
+.topbar-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--surface);
+  border: 1px solid var(--mist);
+  border-radius: var(--radius);
+  padding: 6px;
+  min-width: 180px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  z-index: 100;
+}
+
+.topbar-dropdown-item {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none;
+  color: var(--ink-dim); font-size: 13px;
+  padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; text-align: left;
+  transition: background .15s, color .15s;
+}
+.topbar-dropdown-item:hover { background: var(--surface-2); color: var(--ink); }
+.topbar-dropdown-item:disabled { opacity: .5; cursor: not-allowed; }
+
+.topbar-dropdown-sep {
+  height: 1px; background: var(--mist); margin: 4px 0;
+}
+
+.topbar-dropdown-sair:hover { color: var(--alert) !important; }
