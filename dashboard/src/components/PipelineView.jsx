@@ -282,29 +282,26 @@ export default function PipelineView({
         <section className="pipeline-arch">
           <h2>Arquitetura do PhantomFix</h2>
           <div className="arch-flow">
-            {[
-              { id: "client", label: "Client" },
-              { id: "core", label: "Core" },
-              { id: "datacontrol", label: "Data Control" },
-            ].map((n) => (
-              <div
-                key={n.id}
-                className={`arch-node estado-${estadoNoArquitetura(n.id, statusCore)}`}
-              >
-                {n.label}
-              </div>
-            ))}
+            {["client","core","datacontrol"].map((id, i) => {
+              const labels = { client: "Client", core: "Core", datacontrol: "Data Control" };
+              return (
+                <>
+                  {i > 0 && <span key={`arr-${id}`} className="arch-arrow">→</span>}
+                  <div key={id} className={`arch-node estado-${estadoNoArquitetura(id, statusCore)}`}>
+                    {labels[id]}
+                  </div>
+                </>
+              );
+            })}
+            <span className="arch-arrow">→</span>
             <div className="arch-branch">
               {[
                 { id: "sast", label: "SAST" },
                 { id: "dast", label: "DAST" },
                 { id: "secrets", label: "Secrets" },
-                { id: "deps", label: "Dependencies" },
+                { id: "deps", label: "Deps" },
               ].map((n) => (
-                <div
-                  key={n.id}
-                  className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}
-                >
+                <div key={n.id} className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}>
                   {n.label}
                 </div>
               ))}
@@ -314,12 +311,12 @@ export default function PipelineView({
               { id: "ghost", label: "Ghost" },
               { id: "relatorio", label: "Relatório Final" },
             ].map((n) => (
-              <div
-                key={n.id}
-                className={`arch-node estado-${estadoNoArquitetura(n.id, statusCore)}`}
-              >
-                {n.label}
-              </div>
+              <>
+                <span key={`arr-${n.id}`} className="arch-arrow">→</span>
+                <div key={n.id} className={`arch-node estado-${estadoNoArquitetura(n.id, statusCore)}`}>
+                  {n.label}
+                </div>
+              </>
             ))}
           </div>
           <div className="arch-legend">
