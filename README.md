@@ -19,6 +19,7 @@ Ferramentas de segurança tradicionais costumam geram centenas de alertas a cada
 
 O PhantomFix resolve isso combinando análise estática (SAST) e dinâmica (DAST) com inteligência artificial para **priorizar**, **contextualizar** e **gerar correções automáticas** das vulnerabilidades que mais ameaçam a aplicação ou o sistema.
 
+Além disso, em nossas pesquisas sentimos falta de um "algo a mais", que fosse além de um espaço para ver problemas, mas onde pudesse ver claramente o significado dessas falhas. Foi o que nos inspirou a desenvolver um chatbot, capaz de se alimentar do contexto destas ferramentas para quantificar o grau das ameaças e ajudar na tomada de decisões.
 ---
 
 ## ✨ Funcionalidades
