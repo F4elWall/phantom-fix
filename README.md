@@ -103,35 +103,6 @@ No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análi
 | **Client** | Executável desktop Windows | — |
 
 ---
-
-## 🧑‍💻 Para Desenvolvedores (self-host)
-
-<details>
-<summary>Clique para expandir as instruções de instalação local</summary>
-
-### Pré-requisitos
-
-- Python 3.11+
-- Node.js 18+
-- Java 11+ (para o OWASP ZAP)
-- Chaves de API: [Groq](https://console.groq.com)
-
-### Variáveis de ambiente
-
-### Instalação
-
-```bash
-# Instala dependências de todos os serviços
-chmod +x setup.sh && ./setup.sh
-
-Preencha o .env criado
-
-### Subindo os serviços
-
-```bash
-./start-all.sh
-```
-
 ### Estrutura do projeto
 
 ```
@@ -153,7 +124,7 @@ phantom-fix/
 
 ## 👥 Equipe
 
-Desenvolvido como projeto de conclusão de curso.
+Desenvolvido como projeto Challenge
 
 | Nome               | RM        | GitHub                                           |
 |------------------- |-----------|--------------------------------------------------|
@@ -173,7 +144,5 @@ Este projeto foi desenvolvido para fins acadêmicos.
 ---
 
 <div align="center">
-
-Feito com 👻 e muitas noites sem dormir
 
 </div>
