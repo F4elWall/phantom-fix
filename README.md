@@ -124,7 +124,7 @@ phantom-fix/
 
 ## 👥 Equipe
 
-Desenvolvido como projeto Challenge
+Desenvolvido para o projeto Challenge, em parceria com a Pride e a FIAP
 
 | Nome               | RM        | GitHub                                           |
 |------------------- |-----------|--------------------------------------------------|
