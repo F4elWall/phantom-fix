@@ -24,7 +24,7 @@ class AnalyserAgent:
         if not self.api_key:
             raise ValueError("Defina a variável de ambiente GROQ_API_KEY.")
         self.url   = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "openai/gpt-oss-20b"
 
     def _call_llm(self, prompt: str) -> str:
         headers = {
@@ -38,7 +38,9 @@ class AnalyserAgent:
                 {"role": "user",   "content": prompt}
             ],
             "temperature": 0.2,
-            "max_tokens":  512
+            "max_tokens":  800,
+            "reasoning_effort": "low",
+            "include_reasoning": False
         }
 
         for tentativa in range(5):
