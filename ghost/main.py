@@ -23,7 +23,7 @@ app.add_middleware(
 
 # ── Configuração ───────────────────────────────────────────────────────────────
 GHOST_API_KEY = os.getenv("GHOST_API_KEY")
-GHOST_MODEL   = os.getenv("GHOST_MODEL", "llama-3.3-70b-versatile")
+GHOST_MODEL   = os.getenv("GHOST_MODEL", "openai/gpt-oss-20b")
 
 if not GHOST_API_KEY:
     print("⚠️  AVISO: GHOST_API_KEY não configurada!")
@@ -128,7 +128,9 @@ Responda APENAS com JSON válido, sem texto antes ou depois, sem markdown:
                     "model":       GHOST_MODEL,
                     "messages":    [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
-                    "max_tokens":  1500,
+                    "max_tokens":  1800,
+                    "reasoning_effort": "low",
+                    "include_reasoning": False
                 },
             )
             resp.raise_for_status()
