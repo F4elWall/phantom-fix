@@ -83,7 +83,8 @@ fi
 info "Subindo Ghost..."
 cd "$ROOT/ghost"
 source venv/bin/activate
-export GHOST_MODEL="llama-3.3-70b-versatile"
+export OLLAMA_GHOST_KEY="$OLLAMA_GHOST_KEY"
+export GHOST_MODEL="gpt-oss:20b"
 uvicorn main:app --host 0.0.0.0 --port 8002 \
   > "$LOG_DIR/ghost.log" 2>&1 &
 GHOST_PID=$!
