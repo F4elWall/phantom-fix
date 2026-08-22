@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-GHOST_API_KEY = os.getenv("OLLAMA_API_KEY")
+GHOST_API_KEY = os.getenv("OLLAMA_GHOST_KEY")
 GHOST_MODEL   = os.getenv("GHOST_MODEL", "gpt-oss:20b")
 
 if not GHOST_API_KEY:
