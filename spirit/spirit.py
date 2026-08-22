@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
+OLLAMA_API_KEY = os.getenv("OLLAMA_SPIRIT_KEY")
 CORE_URL       = os.getenv("CORE_URL",     "http://localhost:8000")
 MODELO         = os.getenv("SPIRIT_MODEL", "gpt-oss:20b")
 LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
