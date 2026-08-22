@@ -65,8 +65,8 @@ info "Subindo Spirit..."
 cd "$ROOT/spirit"
 source venv/bin/activate
 export CORE_URL="http://localhost:8000"
-export SPIRIT_API_KEY="$SPIRIT_API_KEY"
-export SPIRIT_MODEL="llama-3.3-70b-versatile"
+export OLLAMA_SPIRIT_KEY="$OLLAMA_SPIRIT_KEY"
+export SPIRIT_MODEL="gpt-oss:20b"
 uvicorn spirit:app --host 0.0.0.0 --port 8001 \
   > "$LOG_DIR/spirit.log" 2>&1 &
 SPIRIT_PID=$!
