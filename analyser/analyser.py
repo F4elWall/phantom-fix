@@ -20,10 +20,10 @@ import requests
 
 class AnalyserAgent:
     def __init__(self, groq_api_key=None):
-        self.api_key = groq_api_key or os.getenv("GROQ_API_KEY")
+        self.api_key = groq_api_key or os.getenv("OLLAMA_ANALYSER_KEY")
         if not self.api_key:
-            raise ValueError("Defina a variável de ambiente GROQ_API_KEY.")
-        self.url   = "https://api.groq.com/openai/v1/chat/completions"
+            raise ValueError("Defina a variável de ambiente OLLAMA_API_KEY.")
+        self.url   = "https://ollama.com/api/chat/completions"
         self.model = "openai/gpt-oss-20b"
 
     def _call_llm(self, prompt: str) -> str:
@@ -137,7 +137,7 @@ Responda exatamente assim (exemplo):
         output = {
             **data,
             "analisado_por_agente": True,
-            "modelo_ia":            f"groq/{self.model}",
+            "modelo_ia":            f"ollama-cloud/{self.model}",
             "processado_em":        datetime.now().isoformat(),
             "vulnerabilidades":     enriched_ordenado,
         }

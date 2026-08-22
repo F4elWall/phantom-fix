@@ -65,8 +65,8 @@ info "Subindo Spirit..."
 cd "$ROOT/spirit"
 source venv/bin/activate
 export CORE_URL="http://localhost:8000"
-export SPIRIT_API_KEY="$SPIRIT_API_KEY"
-export SPIRIT_MODEL="openai/gpt-oss-20b"
+export OLLAMA_SPIRIT_KEY="$OLLAMA_SPIRIT_KEY"
+export SPIRIT_MODEL="gpt-oss:20b"
 uvicorn spirit:app --host 0.0.0.0 --port 8001 \
   > "$LOG_DIR/spirit.log" 2>&1 &
 SPIRIT_PID=$!
@@ -83,7 +83,8 @@ fi
 info "Subindo Ghost..."
 cd "$ROOT/ghost"
 source venv/bin/activate
-export GHOST_MODEL="openai/gpt-oss-20b"
+export OLLAMA_GHOST_KEY="$OLLAMA_GHOST_KEY"
+export GHOST_MODEL="gpt-oss:20b"
 uvicorn main:app --host 0.0.0.0 --port 8002 \
   > "$LOG_DIR/ghost.log" 2>&1 &
 GHOST_PID=$!

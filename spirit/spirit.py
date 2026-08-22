@@ -13,18 +13,17 @@ import os
 from pathlib import Path
 
 import httpx
-from groq import Groq
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-GROQ_API_KEY   = os.getenv("SPIRIT_API_KEY", "")
+OLLAMA_API_KEY = os.getenv("OLLAMA_SPIRIT_KEY")
 CORE_URL       = os.getenv("CORE_URL",     "http://localhost:8000")
-MODELO         = os.getenv("SPIRIT_MODEL", "llama-3.3-70b-versatile")
+MODELO         = os.getenv("SPIRIT_MODEL", "gpt-oss:20b")
 LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
 
-client_groq = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+OLLAMA_URL = "https://ollama.com/api/chat/completions"
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="PhantomFix Spirit", version="0.3.1")
@@ -142,8 +141,8 @@ def saude():
 
 @app.post("/perguntar")
 async def perguntar(body: PerguntaRequest):
-    if not client_groq:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY não configurada")
+    if not OLLAMA_API_KEY:
+        raise HTTPException(status_code=500, detail="OLLAMA_API_KEY não configurada")
 
     # Prioriza o relatório enviado pelo Dashboard
     relatorio = body.relatorio if body.relatorio else await obter_relatorio()
@@ -170,16 +169,22 @@ async def perguntar(body: PerguntaRequest):
     system = SYSTEM_PROMPT.format(legislacao=legislacao_bloco)
 
     try:
-        response = client_groq.chat.completions.create(
-            model=MODELO,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": f"{contexto_relatorio}\n\n=== Pergunta ===\n{body.pergunta}"},
-            ],
-            max_tokens=1024,
-            temperature=0.4,
-        )
-        return {"resposta": response.choices[0].message.content}
+        async with httpx.AsyncClient(timeout=60) as cliente:
+            resp = await cliente.post(
+                OLLAMA_URL,
+                headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"},
+                json={
+                    "model": MODELO,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user",   "content": f"{contexto_relatorio}\n\n=== Pergunta ===\n{body.pergunta}"},
+                    ],
+                    "max_tokens": 1024,
+                    "temperature": 0.4,
+                },
+            )
+            resp.raise_for_status()
+        return {"resposta": resp.json()["choices"][0]["message"]["content"]}
 
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Erro no Groq: {e}")
+        raise HTTPException(status_code=502, detail=f"Erro no Ollama: {e}")
