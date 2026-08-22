@@ -22,11 +22,11 @@ app.add_middleware(
 )
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-GHOST_API_KEY = os.getenv("GHOST_API_KEY")
-GHOST_MODEL   = os.getenv("GHOST_MODEL", "openai/gpt-oss-20b")
+GHOST_API_KEY = os.getenv("OLLAMA_API_KEY")
+GHOST_MODEL   = os.getenv("GHOST_MODEL", "gpt-oss:20b")
 
 if not GHOST_API_KEY:
-    print("⚠️  AVISO: GHOST_API_KEY não configurada!")
+    print("⚠️  AVISO: OLLAMA_API_KEY não configurada!")
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 class Vulnerability(BaseModel):
@@ -122,7 +122,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois, sem markdown:
     try:
         async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                "https://ollama.com/api/chat/completions",
                 headers={"Authorization": f"Bearer {GHOST_API_KEY}"},
                 json={
                     "model":       GHOST_MODEL,
