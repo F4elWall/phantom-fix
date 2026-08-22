@@ -20,7 +20,7 @@ import requests
 
 class AnalyserAgent:
     def __init__(self, groq_api_key=None):
-        self.api_key = groq_api_key or os.getenv("OLLAMA_API_KEY")
+        self.api_key = groq_api_key or os.getenv("OLLAMA_ANALYSER_KEY")
         if not self.api_key:
             raise ValueError("Defina a variável de ambiente OLLAMA_API_KEY.")
         self.url   = "https://ollama.com/api/chat/completions"
