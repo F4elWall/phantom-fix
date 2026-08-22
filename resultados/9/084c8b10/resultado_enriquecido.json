@@ -1,0 +1,67 @@
+{
+  "analisado_em": "2026-08-21T18:23:22.597799",
+  "total_encontrado": 4,
+  "origem_semgrep": 3,
+  "origem_zap": 1,
+  "vulnerabilidades": [
+    {
+      "id": "vuln-001",
+      "origem": "semgrep",
+      "arquivo": "/home/coreuser/phantom-fix/core/jobs/9/084c8b10/repo/core/main.py",
+      "linha": 32,
+      "tipo": "wildcard-cors",
+      "severidade": "WARNING",
+      "descricao": "CORS policy allows any origin (using wildcard '*'). This is insecure and should be avoided.",
+      "trecho_do_codigo": "\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)",
+      "score": 8.5,
+      "justificativa": "A política CORS permite qualquer origem, método e cabeçalho usando '*', expondo a aplicação a ataques de CSRF, data exfiltration e outras vulnerabilidades de segurança. Essa configuração é considerada insegura e pode permitir que scripts maliciosos de qualquer domínio acessem recursos sensíveis da API.",
+      "categoria": "CORS Misconfiguration",
+      "recomendacao": "Defina explicitamente os domínios permitidos em allow_origins, restrinja os métodos em allow_methods e os cabeçalhos em allow_headers. Considere usar allow_origin_regex ou permitir apenas domínios confiáveis. Revise a necessidade de permitir todos os métodos e cabeçalhos e remova '*' quando não for estritamente necessário."
+    },
+    {
+      "id": "vuln-002",
+      "origem": "semgrep",
+      "arquivo": "/home/coreuser/phantom-fix/core/jobs/9/084c8b10/repo/ghost/main.py",
+      "linha": 19,
+      "tipo": "wildcard-cors",
+      "severidade": "WARNING",
+      "descricao": "CORS policy allows any origin (using wildcard '*'). This is insecure and should be avoided.",
+      "trecho_do_codigo": "\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)",
+      "score": 5,
+      "justificativa": "Permitir qualquer origem, método e cabeçalho via '*', abre a aplicação a ataques de CSRF e exposição de dados a domínios não confiáveis, representando risco de segurança moderado.",
+      "categoria": "CORS Misconfiguration",
+      "recomendacao": "Definir explicitamente os domínios permitidos em allow_origins, limitar allow_methods e allow_headers aos valores necessários, e considerar o uso de credentials e políticas de segurança adicionais."
+    },
+    {
+      "id": "vuln-003",
+      "origem": "semgrep",
+      "arquivo": "/home/coreuser/phantom-fix/core/jobs/9/084c8b10/repo/spirit/spirit.py",
+      "linha": 33,
+      "tipo": "wildcard-cors",
+      "severidade": "WARNING",
+      "descricao": "CORS policy allows any origin (using wildcard '*'). This is insecure and should be avoided.",
+      "trecho_do_codigo": "app = FastAPI(title=\"PhantomFix Spirit\", version=\"0.3.1\")\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)",
+      "score": 5,
+      "justificativa": "A política CORS permite qualquer origem usando '*', expondo a API a requisições de qualquer domínio, o que pode levar a ataques de CSRF, vazamento de dados e exposição de recursos sensíveis.",
+      "categoria": "CORS Misconfiguration",
+      "recomendacao": "Substitua allow_origins=[\"*\"] por uma lista específica de domínios confiáveis, ou use um mecanismo de validação dinâmica. Além disso, restrinja allow_methods e allow_headers apenas aos necessários, e habilite credentials se for preciso."
+    },
+    {
+      "id": "vuln-004",
+      "origem": "zap",
+      "arquivo": "https://phatom-fix-dashboard.vercel.app",
+      "linha": 0,
+      "tipo": "user-agent-fuzzer",
+      "severidade": "INFO",
+      "descricao": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response.",
+      "trecho_do_codigo": "",
+      "score": 5,
+      "justificativa": "A análise indica que o fuzzer de User-Agent detectou diferenças de resposta baseadas no cabeçalho, o que pode revelar informações sobre a aplicação (por exemplo, páginas diferentes para dispositivos móveis ou crawlers). Embora a severidade seja INFO, a possibilidade de exposição de dados sensíveis ou de facilitar ataques de engenharia social justifica atenção.",
+      "categoria": "Discriminação de Conteúdo / Exposição de Informações",
+      "recomendacao": "Implemente respostas consistentes independentemente do User-Agent, removendo lógica que altere conteúdo ou status de forma discriminatória. Realize testes de penetração focados em User-Agent e configure regras de firewall ou WAF para bloquear solicitações suspeitas. Documente e monitore logs para detectar padrões anômalos."
+    }
+  ],
+  "analisado_por_agente": true,
+  "modelo_ia": "groq/openai/gpt-oss-20b",
+  "processado_em": "2026-08-21T18:23:33.528420"
+}

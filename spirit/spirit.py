@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── Configuração ───────────────────────────────────────────────────────────────
-GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY   = os.getenv("SPIRIT_API_KEY", "")
 CORE_URL       = os.getenv("CORE_URL",     "http://localhost:8000")
 MODELO         = os.getenv("SPIRIT_MODEL", "llama-3.3-70b-versatile")
 LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
