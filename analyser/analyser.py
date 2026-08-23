@@ -89,6 +89,13 @@ class AnalyserAgent:
 
             prompt = f"""Analise a vulnerabilidade abaixo e retorne **apenas** um objeto JSON com as chaves "score", "justificativa", "categoria" e "recomendacao". O JSON deve estar em uma linha, sem quebras de linha extras.
 
+Escala de score (0-10):
+- 9.0-10.0: Crítico — exploração trivial, impacto imediato (ex: RCE, SQLi com dados expostos)
+- 7.0-8.9:  Alto — exploração possível, impacto significativo (ex: XSS armazenado, IDOR)
+- 4.0-6.9:  Médio — exploração condicionada, impacto moderado (ex: headers ausentes, CORS)
+- 1.0-3.9:  Baixo — difícil exploração, impacto limitado (ex: informações de versão, timing)
+- 0.0-0.9:  Informativo — sem impacto direto
+
 Vulnerabilidade:
 {json.dumps(vuln, indent=2, ensure_ascii=False)}
 
