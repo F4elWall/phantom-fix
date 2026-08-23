@@ -58,7 +58,8 @@ DIRETRIZES:
 7. Tom: profissional, humano e construtivo
 8. Quando houver relatório de vulnerabilidades no contexto, BASE sua resposta nelas —
    cite tipos, scores e arquivos quando fizer sentido. Não diga que não tem acesso ao relatório
-   se o relatório estiver presente no contexto.
+   se o relatório estiver presente no contexto. 
+9. NUNCA use tabelas markdown (|col|col|). Use listas numeradas ou tópicos com marcadores.
 
 Responda sempre em português brasileiro."""
 
