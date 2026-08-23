@@ -19,7 +19,7 @@ export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 export HOME="${HOME:-/home/coreuser}"
 
 ok()   { echo -e "${VERDE}✅ $1${RESET}"; }
-info() { echo -e "${CIANO}➤  $1${RESET}"; }
+info() { echo -e "${CIANO}➤ $1${RESET}"; }
 erro() { echo -e "${VERMELHO}❌ $1${RESET}"; }
 
 # Carrega variáveis de ambiente
@@ -32,7 +32,7 @@ ok "Código atualizado"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║         PhantomFix — Iniciando...        ║"
+echo "║       PhantomFix — Iniciando...          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
@@ -71,7 +71,6 @@ uvicorn spirit:app --host 0.0.0.0 --port 8001 \
   > "$LOG_DIR/spirit.log" 2>&1 &
 SPIRIT_PID=$!
 deactivate
-
 sleep 3
 if curl -s http://localhost:8001/saude > /dev/null 2>&1; then
   ok "Spirit pronto (PID $SPIRIT_PID)"
@@ -89,7 +88,6 @@ uvicorn main:app --host 0.0.0.0 --port 8002 \
   > "$LOG_DIR/ghost.log" 2>&1 &
 GHOST_PID=$!
 deactivate
-
 sleep 3
 if curl -s http://localhost:8002/health > /dev/null 2>&1; then
   ok "Ghost pronto (PID $GHOST_PID)"
@@ -107,6 +105,8 @@ export SCANNER_TIMEOUT="7200"
 export ZAP_API_URL="http://localhost:8080"
 export ZAP_TIMEOUT="3600"
 export GHOST_URL="http://localhost:8002/corrigir"
+export OLLAMA_ANALYSER_KEY="$OLLAMA_ANALYSER_KEY"
+export OLLAMA_MODEL="gpt-oss:20b"
 export JOBS_DIR="$ROOT/core/jobs"
 export RESULTADOS_DIR="$ROOT/resultados"
 mkdir -p "$JOBS_DIR"
@@ -114,7 +114,6 @@ uvicorn main:app --host 0.0.0.0 --port 8000 \
   > "$LOG_DIR/core.log" 2>&1 &
 CORE_PID=$!
 deactivate
-
 sleep 3
 if curl -s http://localhost:8000/ > /dev/null 2>&1; then
   ok "Core pronto (PID $CORE_PID)"
@@ -125,7 +124,7 @@ fi
 # ── Status final ──────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║           Tudo no ar! 👻                 ║"
+echo "║          Tudo no ar! 👻                  ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 echo "  ZAP    → http://localhost:8080  (PID $ZAP_PID)"
@@ -138,8 +137,16 @@ echo ""
 echo "  Para parar tudo: kill $ZAP_PID $SPIRIT_PID $GHOST_PID $CORE_PID"
 echo "  Ou pressione Ctrl+C agora."
 echo ""
+echo "──────────────────────────────────────────────"
+echo "  Acompanhando logs (Ctrl+C para sair)..."
+echo "──────────────────────────────────────────────"
+echo ""
 
 # ── Tail dos logs unificados ──────────────────────────────────────────────────
 trap "echo ''; info 'Encerrando...'; kill $ZAP_PID $SPIRIT_PID $GHOST_PID $CORE_PID 2>/dev/null; exit 0" INT
 
-wait
+tail -n 20 -f \
+  "$LOG_DIR/zap.log" \
+  "$LOG_DIR/spirit.log" \
+  "$LOG_DIR/ghost.log" \
+  "$LOG_DIR/core.log"
