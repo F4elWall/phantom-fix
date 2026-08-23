@@ -23,7 +23,7 @@ class AnalyserAgent:
         self.api_key = groq_api_key or os.getenv("OLLAMA_ANALYSER_KEY")
         if not self.api_key:
             raise ValueError("Defina a variável de ambiente OLLAMA_API_KEY.")
-        self.url   = "https://ollama.com/api/chat/completions"
+        self.url = "https://ollama.com/v1/chat/completions"
         self.model = "gpt-oss-20b"
 
     def _call_llm(self, prompt: str) -> str:
