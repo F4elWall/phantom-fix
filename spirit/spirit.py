@@ -23,7 +23,7 @@ CORE_URL       = os.getenv("CORE_URL",     "http://localhost:8000")
 MODELO         = os.getenv("SPIRIT_MODEL", "gpt-oss:20b")
 LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
 
-OLLAMA_URL = "https://ollama.com/api/chat/completions"
+OLLAMA_URL = "https://ollama.com/v1/chat/completions"
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="PhantomFix Spirit", version="0.3.1")
