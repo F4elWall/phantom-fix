@@ -1,6 +1,6 @@
 """
 PhantomFix — Ghost (v1.1)
-Gera correções automáticas de código usando LLM (Groq).
+Gera correções automáticas de código usando LLM (Ollama Cloud).
 """
 
 import json
@@ -26,7 +26,7 @@ GHOST_API_KEY = os.getenv("OLLAMA_GHOST_KEY")
 GHOST_MODEL   = os.getenv("GHOST_MODEL", "gpt-oss:20b")
 
 if not GHOST_API_KEY:
-    print("⚠️  AVISO: OLLAMA_API_KEY não configurada!")
+    print("⚠️  AVISO: OLLAMA_GHOST_KEY não configurada!")
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 class Vulnerability(BaseModel):
@@ -37,8 +37,8 @@ class Vulnerability(BaseModel):
     severidade: str
     descricao: str
     trecho_do_codigo: str
-    score: float
-    justificativa: str
+    score: float = 0.0
+    justificativa: str = ""
     categoria: str = ""
     recomendacao: str = ""
 
@@ -54,13 +54,11 @@ historico: Dict[str, CorrectionResponse] = {}
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def extrair_json(text: str) -> dict:
     """Extrai JSON do texto mesmo que venha com markdown ou texto extra."""
-    # Remove blocos markdown
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0]
     elif "```" in text:
         text = text.split("```")[1].split("```")[0]
 
-    # Encontra o bloco JSON
     start = text.find("{")
     end   = text.rfind("}") + 1
     if start == -1 or end <= start:
@@ -88,9 +86,9 @@ def get_historico():
 
 @app.post("/corrigir", response_model=CorrectionResponse)
 async def corrigir_vulnerabilidade(vuln: Vulnerability):
-    """Gera correção segura para uma vulnerabilidade usando o Groq."""
+    """Gera correção segura para uma vulnerabilidade usando o Ollama Cloud."""
     if not GHOST_API_KEY:
-        raise HTTPException(status_code=500, detail="GHOST_API_KEY não configurada")
+        raise HTTPException(status_code=500, detail="OLLAMA_GHOST_KEY não configurada")
 
     prompt = f"""Você é um expert em segurança de aplicações e refatoração segura.
 
@@ -122,7 +120,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois, sem markdown:
     try:
         async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.post(
-                "https://ollama.com/api/chat/completions",
+                "https://ollama.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {GHOST_API_KEY}"},
                 json={
                     "model":       GHOST_MODEL,
@@ -145,6 +143,6 @@ Responda APENAS com JSON válido, sem texto antes ou depois, sem markdown:
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=502, detail=f"Resposta inválida do modelo: {e}")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Erro na API Groq: {e.response.text}")
+        raise HTTPException(status_code=502, detail=f"Erro na API Ollama: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar correção: {e}")
