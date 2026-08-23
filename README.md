@@ -6,8 +6,7 @@
 
 PhantomFix é uma plataforma ASPM *(Application Security Posture Management)* com IA que encontra o que importa, prioriza o que é crítico e te ajuda a corrigir antes que os problemas se tornem problemas.
 
-<img width="1919" height="907" alt="image" src="https://github.com/user-attachments/assets/8823c6f7-aa1e-46c0-aab2-771679939a55" />
-
+<img width="1851" height="1019" alt="image" src="https://github.com/user-attachments/assets/7cd1491c-3e04-4ac1-8b51-f3a232e269db" />
 
 </div>
 
