@@ -24,7 +24,7 @@ class AnalyserAgent:
         if not self.api_key:
             raise ValueError("Defina a variável de ambiente OLLAMA_API_KEY.")
         self.url = "https://ollama.com/v1/chat/completions"
-        self.model = "gpt-oss-20b"
+        self.model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 
     def _call_llm(self, prompt: str) -> str:
         headers = {
