@@ -1,13 +1,15 @@
 """
 PhantomFix — Analyser
-Versão: 3.0
+Versão: 3.1
 
 Recebe o findings.json do scanner, executa correlação mecânica entre
 ferramentas e enriquece cada vulnerabilidade com score, justificativa,
 categoria e recomendação via LLM.
 
 Fluxo:
-  1. Correlação 1 — Trivy × imports no código (score_base 8.5)
+  1. Correlação 1 — Trivy × imports no código
+       - Import direto encontrado  → score_base 8.5 | tag "confirmado_em_uso"
+       - Só no lockfile (dep transitiva) → score_base 6.0 | tag "confirmado_via_lockfile"
   2. Correlação 2 — Semgrep × ZAP mesmo tipo + localização (score_base 8.0)
   3. LLM analisa cada vulnerabilidade com o contexto de correlação já embutido
   4. Ordena por score decrescente e salva
@@ -30,9 +32,10 @@ import requests
 # ══════════════════════════════════════════════════════════════════════════════
 # CORRELAÇÃO 1 — Trivy × import/uso da biblioteca no código
 #
-# Se o Trivy achou uma biblioteca vulnerável E ela é importada em algum
-# arquivo de código do projeto, o risco é real e confirmado em uso.
-# score_base → 8.5 | tag → "confirmado_em_uso"
+# Dois níveis de evidência:
+#   A) Import direto no código-fonte  → risco confirmado, score_base 8.5
+#   B) Presente apenas no lockfile    → dep transitiva do bundler/runtime,
+#      risco real mas exploração indireta, score_base 6.0
 # ══════════════════════════════════════════════════════════════════════════════
 
 EXTENSOES_CODIGO = {
@@ -56,11 +59,15 @@ def _cache_arquivos_codigo(pasta: Path) -> dict:
 def correlacionar_trivy_imports(vulns: list, pasta_repo: Path) -> int:
     """
     Para cada finding do Trivy, verifica se o pacote vulnerável é importado
-    em algum arquivo de código. Se sim, eleva score_base e marca a tag.
-    Retorna o número de findings afetados.
+    em algum arquivo de código do projeto.
+
+    - Import direto encontrado  → tag "confirmado_em_uso",      score_base 8.5
+    - Só presente no lockfile   → tag "confirmado_via_lockfile", score_base 6.0
+
+    Retorna o número de findings afetados (ambos os casos).
     """
     trivy_vulns = [v for v in vulns if v.get("origem") == "trivy" and v.get("pkg_name")]
-    if not trivy_vulns or not pasta_repo.exists():
+    if not trivy_vulns:
         return 0
 
     # Agrupa findings Trivy por pacote para evitar varrer o código N vezes
@@ -69,7 +76,8 @@ def correlacionar_trivy_imports(vulns: list, pasta_repo: Path) -> int:
         pkg = v["pkg_name"].lower()
         por_pacote.setdefault(pkg, []).append(v)
 
-    cache = _cache_arquivos_codigo(pasta_repo)
+    # Só varre o código se o repositório existir
+    cache = _cache_arquivos_codigo(pasta_repo) if pasta_repo.exists() else {}
     total_afetados = 0
 
     for pkg_key, findings in por_pacote.items():
@@ -85,14 +93,32 @@ def correlacionar_trivy_imports(vulns: list, pasta_repo: Path) -> int:
                     break
 
         if arquivos_com_uso:
+            # ── Nível A: import direto confirmado no código-fonte ─────────────
             exemplos = [Path(a).name for a in arquivos_com_uso[:3]]
             for v in findings:
-                v["score_base"]     = 8.5
-                v["tags_correlacao"] = v.get("tags_correlacao", []) + ["confirmado_em_uso"]
+                v["score_base"]          = 8.5
+                v["tags_correlacao"]     = v.get("tags_correlacao", []) + ["confirmado_em_uso"]
                 v["contexto_correlacao"] = (
                     f"Biblioteca vulnerável '{pkg_key}' ({v.get('cve_id', '')}) "
                     f"confirmada em uso direto no código: {', '.join(exemplos)}. "
                     f"O risco não é teórico."
+                )
+            total_afetados += len(findings)
+
+        else:
+            # ── Nível B: presente no lockfile, sem import direto ──────────────
+            # Provavelmente dep transitiva de bundler/runtime (ex: Vite, Webpack).
+            # Risco real, mas exploração é indireta — o score deve refletir isso.
+            for v in findings:
+                v["score_base"]          = 6.0
+                v["tags_correlacao"]     = v.get("tags_correlacao", []) + ["confirmado_via_lockfile"]
+                v["contexto_correlacao"] = (
+                    f"Biblioteca vulnerável '{pkg_key}' ({v.get('cve_id', '')}) "
+                    f"presente no lockfile do projeto, mas sem import direto "
+                    f"identificado no código-fonte. Provavelmente dependência "
+                    f"transitiva de bundler ou runtime (ex: Vite, Webpack). "
+                    f"O risco é real, mas a exploração é indireta e depende "
+                    f"do contexto de execução — score deve ser moderado."
                 )
             total_afetados += len(findings)
 
@@ -155,8 +181,8 @@ def correlacionar_semgrep_zap(vulns: list) -> int:
             arquivo_sg = Path(sv.get("arquivo", "")).name.lower()
             arquivo_zp = Path(zv.get("arquivo", "")).name.lower()
 
-            mesmo_arquivo   = bool(arquivo_sg and arquivo_zp and arquivo_sg == arquivo_zp)
-            proximas        = (
+            mesmo_arquivo = bool(arquivo_sg and arquivo_zp and arquivo_sg == arquivo_zp)
+            proximas      = (
                 sv.get("linha", 0) > 0 and zv.get("linha", 0) > 0
                 and abs(sv["linha"] - zv["linha"]) <= LINHAS_PROXIMAS
             )
@@ -238,7 +264,7 @@ class AnalyserAgent:
         inclui esse contexto para que o score reflita a confirmação.
         """
         contexto_correlacao = ""
-        tags = vuln.get("tags_correlacao", [])
+        tags       = vuln.get("tags_correlacao", [])
         score_base = vuln.get("score_base", 0)
 
         if tags:
@@ -248,9 +274,10 @@ ATENÇÃO — Correlação detectada pelo sistema:
 - Score base sugerido pela correlação: {score_base}
 - Contexto: {vuln.get("contexto_correlacao", "")}
 
-Considere este contexto ao definir o score final. Uma vulnerabilidade confirmada
-por múltiplas ferramentas ou comprovadamente em uso merece score mais alto
-do que uma detectada por apenas uma fonte.
+Considere este contexto ao definir o score final:
+- "confirmado_em_uso": import direto no código → score alto (≥ 8.0)
+- "confirmado_via_lockfile": dep transitiva do bundler, sem import direto → score moderado (4.0–6.9)
+- "confirmado_por_multiplas_ferramentas": SAST + DAST convergem → score alto (≥ 8.0)
 """
 
         return f"""Analise a vulnerabilidade abaixo e retorne **apenas** um objeto JSON com as chaves "score", "justificativa", "categoria" e "recomendacao". O JSON deve estar em uma linha, sem quebras de linha extras.
@@ -258,7 +285,7 @@ do que uma detectada por apenas uma fonte.
 Escala de score (0-10):
 - 9.0-10.0: Crítico — exploração trivial, impacto imediato (ex: RCE, SQLi com dados expostos)
 - 7.0-8.9:  Alto — exploração possível, impacto significativo (ex: XSS armazenado, IDOR)
-- 4.0-6.9:  Médio — exploração condicionada, impacto moderado (ex: headers ausentes, CORS)
+- 4.0-6.9:  Médio — exploração condicionada, impacto moderado (ex: headers ausentes, CORS, dep transitiva)
 - 1.0-3.9:  Baixo — difícil exploração, impacto limitado (ex: informações de versão, timing)
 - 0.0-0.9:  Informativo — sem impacto direto
 {contexto_correlacao}
@@ -284,19 +311,22 @@ Responda exatamente assim (exemplo):
 
         # ── Correlação mecânica (antes do LLM) ───────────────────────────────
 
-        # Tenta localizar a pasta do repositório extraído a partir do findings.json
-        # O Core salva o findings em resultados/{user_id}/{protocolo}/findings.json
-        # e extrai o repo em jobs/{user_id}/{protocolo}/repo/
         pasta_repo = Path(os.getenv("PASTA_REPO", ""))
         if not pasta_repo.exists():
-            # Tenta inferir pelo caminho do findings
-            candidata = findings_path.parent.parent.parent / "jobs"
+            # Fallback: tenta inferir pelo caminho do findings
+            candidata  = findings_path.parent.parent.parent / "jobs"
             pastas_job = list(candidata.rglob("repo")) if candidata.exists() else []
             pasta_repo = pastas_job[0] if pastas_job else Path("")
 
-        print("\n[Correlação 1] Trivy × imports no código...")
+        print(f"\n[Correlação 1] Trivy × imports no código (repo: {pasta_repo})...")
         c1 = correlacionar_trivy_imports(vulns, pasta_repo)
-        print(f"  {c1} finding(s) Trivy confirmados em uso")
+        print(f"  {c1} finding(s) Trivy correlacionados")
+        # Detalha os dois níveis para facilitar debugging
+        em_uso     = sum(1 for v in vulns if "confirmado_em_uso"      in v.get("tags_correlacao", []))
+        via_lock   = sum(1 for v in vulns if "confirmado_via_lockfile" in v.get("tags_correlacao", []))
+        if c1:
+            print(f"    → {em_uso} com import direto (score_base 8.5)")
+            print(f"    → {via_lock} só no lockfile / dep transitiva (score_base 6.0)")
 
         print("\n[Correlação 2] Semgrep × ZAP (mesmo tipo + localização)...")
         c2 = correlacionar_semgrep_zap(vulns)
@@ -334,17 +364,17 @@ Responda exatamente assim (exemplo):
                     clean = clean[start:end]
 
                 result = json.loads(clean)
-                vuln["score"]        = result.get("score", "N/A")
+                vuln["score"]         = result.get("score", "N/A")
                 vuln["justificativa"] = result.get("justificativa", "N/A")
-                vuln["categoria"]    = result.get("categoria", "N/A")
-                vuln["recomendacao"] = result.get("recomendacao", "N/A")
+                vuln["categoria"]     = result.get("categoria", "N/A")
+                vuln["recomendacao"]  = result.get("recomendacao", "N/A")
 
             except Exception as e:
                 print(f"\n  ⚠ Erro em {vuln.get('id', '?')}: {e}")
-                vuln["score"]        = vuln.get("score_base") or None
+                vuln["score"]         = vuln.get("score_base") or None
                 vuln["justificativa"] = f"Falha na análise: {str(e)[:100]}"
-                vuln["categoria"]    = "Desconhecida"
-                vuln["recomendacao"] = "Revisar manualmente"
+                vuln["categoria"]     = "Desconhecida"
+                vuln["recomendacao"]  = "Revisar manualmente"
 
             enriched.append(vuln)
             time.sleep(2)
