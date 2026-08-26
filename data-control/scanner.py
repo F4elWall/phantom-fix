@@ -1,6 +1,6 @@
 """
 Autor e revisão: Bernardo Coroa
-Versão: 3.0
+Versão: 3.1
 
 PhantomFix — Data Control (scanner.py)
 Script chamado pelo Core como subprocesso. Recebe o caminho de uma pasta
@@ -19,6 +19,7 @@ import json
 import sys
 import os
 import time
+import tempfile
 import requests
 from datetime import datetime
 from pathlib import Path
@@ -245,19 +246,39 @@ except Exception as e:
 print("\n[4/4] Rodando Trivy (SCA — Dependências)...")
 contador_trivy = 0
 
+# FIX v3.1: Trivy mistura logs INFO/WARN no stdout junto com o JSON, corrompendo
+# o json.loads(). Solução: redirecionar o JSON para um arquivo temporário via
+# --output, isolando completamente o JSON dos logs do stderr/stdout.
+# Também adicionado --include-dev-deps para capturar vulns em deps de dev
+# (ex: brace-expansion, nanoid) que o Trivy suprime por padrão.
+
+with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+    trivy_output = Path(tmp.name)
+
 try:
     resultado_trivy = subprocess.run(
         [
             "trivy", "fs",
             "--format", "json",
+            "--output", str(trivy_output),  # ← JSON isolado do stdout
             "--quiet",
             "--scanners", "vuln",
+            "--include-dev-deps",           # ← captura deps de dev também
             str(PASTA),
         ],
         capture_output=True, text=True
     )
 
-    saida_trivy = json.loads(resultado_trivy.stdout) if resultado_trivy.stdout.strip() else {}
+    if resultado_trivy.returncode != 0:
+        print(f"  ⚠ Trivy retornou código {resultado_trivy.returncode}")
+        if resultado_trivy.stderr:
+            print(f"  stderr: {resultado_trivy.stderr[:300]}")
+
+    if trivy_output.exists() and trivy_output.stat().st_size > 0:
+        saida_trivy = json.loads(trivy_output.read_text(encoding="utf-8"))
+    else:
+        print("  ⚠ Trivy não gerou arquivo de saída")
+        saida_trivy = {}
 
     for resultado in saida_trivy.get("Results", []):
         arquivo_dep = resultado.get("Target", "")
@@ -302,10 +323,12 @@ try:
 
 except FileNotFoundError:
     print("  ⚠ Trivy não encontrado — verifique se está instalado e no PATH")
-except json.JSONDecodeError:
-    print("  ⚠ Trivy não retornou JSON válido")
+except json.JSONDecodeError as e:
+    print(f"  ⚠ Trivy não retornou JSON válido: {e}")
 except Exception as e:
     print(f"  ⚠ Erro ao rodar Trivy: {e}")
+finally:
+    trivy_output.unlink(missing_ok=True)  # limpa o arquivo temporário
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FINALIZAÇÃO — numera IDs e escreve o JSON
