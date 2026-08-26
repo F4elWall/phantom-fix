@@ -21,12 +21,14 @@ export HOME="${HOME:-/home/coreuser}"
 ok()   { echo -e "${VERDE}✅ $1${RESET}"; }
 info() { echo -e "${CIANO}➤ $1${RESET}"; }
 erro() { echo -e "${VERMELHO}❌ $1${RESET}"; }
+aviso(){ echo -e "${AMARELO}⚠️  $1${RESET}"; }
 
 # Carrega variáveis de ambiente
 source /home/coreuser/.phantom-fix.env
 
 # Atualiza o código antes de subir
 info "Atualizando código..."
+git stash > /dev/null 2>&1
 git pull origin main
 ok "Código atualizado"
 
@@ -34,6 +36,31 @@ echo ""
 echo "╔══════════════════════════════════════════╗"
 echo "║       PhantomFix — Iniciando...          ║"
 echo "╚══════════════════════════════════════════╝"
+echo ""
+
+# ── Verificação de ferramentas de scanner ─────────────────────────────────────
+info "Verificando ferramentas de scanner..."
+
+if command -v semgrep > /dev/null 2>&1; then
+  ok "Semgrep encontrado ($(semgrep --version 2>&1 | head -1))"
+else
+  erro "Semgrep não encontrado — SAST desativado"
+fi
+
+if command -v gitleaks > /dev/null 2>&1; then
+  ok "Gitleaks encontrado ($(gitleaks version 2>&1 | head -1))"
+else
+  aviso "Gitleaks não encontrado — Secrets scanning desativado"
+  aviso "  Instale com: wget https://github.com/gitleaks/gitleaks/releases/..."
+fi
+
+if command -v trivy > /dev/null 2>&1; then
+  ok "Trivy encontrado ($(trivy --version 2>&1 | head -1))"
+else
+  aviso "Trivy não encontrado — SCA/Dependências desativado"
+  aviso "  Instale com: sudo sh install-trivy.sh -b /usr/local/bin"
+fi
+
 echo ""
 
 # ── 1. ZAP ────────────────────────────────────────────────────────────────────
@@ -131,6 +158,11 @@ echo "  ZAP    → http://localhost:8080  (PID $ZAP_PID)"
 echo "  Spirit → http://localhost:8001  (PID $SPIRIT_PID)"
 echo "  Ghost  → http://localhost:8002  (PID $GHOST_PID)"
 echo "  Core   → http://localhost:8000  (PID $CORE_PID)"
+echo ""
+echo "  Scanners disponíveis no pipeline:"
+command -v semgrep  > /dev/null 2>&1 && echo "    ✅ Semgrep"  || echo "    ❌ Semgrep"
+command -v gitleaks > /dev/null 2>&1 && echo "    ✅ Gitleaks" || echo "    ⚠️  Gitleaks (não instalado)"
+command -v trivy    > /dev/null 2>&1 && echo "    ✅ Trivy"    || echo "    ⚠️  Trivy    (não instalado)"
 echo ""
 echo "  Logs em: $LOG_DIR/"
 echo ""
