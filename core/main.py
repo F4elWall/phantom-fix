@@ -25,7 +25,7 @@ from pydantic import BaseModel
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
 
-app = FastAPI(title="PhantomFix Core", version="0.5.0")
+app = FastAPI(title="PhantomFix Core", version="0.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -243,15 +243,9 @@ async def receber_zip(
     return {"status": "recebido", "protocolo": protocolo, "repositorio": repositorio}
 
 
-@app.get("/scan/{protocolo}/status")
-def status_scan(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
-    job = _status_jobs.get(protocolo)
-    if not job:
-        raise HTTPException(status_code=404, detail="Protocolo não encontrado")
-    # Garante que o protocolo pertence ao usuário
-    if job.get("user_id") != usuario["id"]:
-        raise HTTPException(status_code=403, detail="Acesso negado")
-    return job
+# FIX v0.6.0 — Bug 1: /scan/ativo deve vir ANTES de /scan/{protocolo}/status.
+# O FastAPI resolve rotas na ordem de registro. Com a ordem anterior,
+# "ativo" era capturado como valor de {protocolo}, e scan_ativo nunca era chamado.
 
 @app.get("/scan/ativo")
 def scan_ativo(usuario: dict = Depends(usuario_autenticado)):
@@ -259,6 +253,16 @@ def scan_ativo(usuario: dict = Depends(usuario_autenticado)):
         if job.get("user_id") == usuario["id"] and job.get("status") not in ["concluido", "erro"]:
             return {"protocolo": protocolo, **job}
     return None
+
+@app.get("/scan/{protocolo}/status")
+def status_scan(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
+    job = _status_jobs.get(protocolo)
+    if not job:
+        raise HTTPException(status_code=404, detail="Protocolo não encontrado")
+    if job.get("user_id") != usuario["id"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    return job
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE
@@ -311,14 +315,21 @@ def pipeline_completo(user_id: int, protocolo: str, pasta_job: Path, zip_path: P
         vulnerabilidades = achados.get("vulnerabilidades", [])
         print(f"[{protocolo}] {len(vulnerabilidades)} vulnerabilidades encontradas")
 
-        # ── 3. Analyser (Groq) ───────────────────────────────────────────────
+        # ── 3. Analyser ───────────────────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "analisando"
         arquivo_enriquecido = pasta_resultado / "resultado_enriquecido.json"
 
-        print(f"[{protocolo}] Acionando analyser.py...")
+        # FIX v0.6.0 — Bug 2: passa PASTA_REPO via env para que o Analyser
+        # consiga fazer a correlação Trivy × imports no código-fonte.
+        # Sem isso, correlacionar_trivy_imports() nunca acha o repositório
+        # e sempre retorna 0 findings confirmados em uso.
+        env_analyser = {**os.environ, "PASTA_REPO": str(pasta_extraida)}
+
+        print(f"[{protocolo}] Acionando analyser.py (PASTA_REPO={pasta_extraida})...")
         proc_analyser = subprocess.run(
             [SCANNER_PYTHON, ANALYSER_PATH, str(arquivo_findings), str(arquivo_enriquecido)],
-            capture_output=True, text=True, timeout=SCANNER_TIMEOUT
+            capture_output=True, text=True, timeout=SCANNER_TIMEOUT,
+            env=env_analyser,
         )
 
         print(f"[{protocolo}] --- analyser.py ---")
@@ -344,6 +355,8 @@ def pipeline_completo(user_id: int, protocolo: str, pasta_job: Path, zip_path: P
             "total_encontrado": achados.get("total_encontrado", len(vulnerabilidades)),
             "origem_semgrep":   achados.get("origem_semgrep", 0),
             "origem_zap":       achados.get("origem_zap", 0),
+            "origem_gitleaks":  achados.get("origem_gitleaks", 0),
+            "origem_trivy":     achados.get("origem_trivy", 0),
             "analisado_por_ia": achados_finais.get("analisado_por_agente", False),
             "modelo_ia":        achados_finais.get("modelo_ia", ""),
             "status":           "gerando_correcoes",
@@ -430,7 +443,7 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
 
 @app.get("/")
 def raiz():
-    return {"status": "PhantomFix Core funcionando", "versao": "0.5.0"}
+    return {"status": "PhantomFix Core funcionando", "versao": "0.6.0"}
 
 
 @app.get("/vulnerabilidades")
@@ -445,7 +458,6 @@ def listar_vulnerabilidades(
     if not resultado:
         raise HTTPException(status_code=404, detail="Nenhuma análise disponível ainda")
 
-    # Garante que o protocolo pertence ao usuário
     if resultado.get("user_id") != usuario["id"]:
         raise HTTPException(status_code=403, detail="Acesso negado")
 
