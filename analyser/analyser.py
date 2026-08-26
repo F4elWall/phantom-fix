@@ -1,167 +1,338 @@
 """
-PhantomFix — Analyser
-Recebe o caminho do findings.json e o caminho de saída,
-enriquece cada vulnerabilidade com score, justificativa,
-categoria e recomendação usando Groq (Llama 3.3 70B),
-ordena por score decrescente e salva o resultado.
+Autor e revisão: Bernardo Coroa
+Versão: 3.0
+
+PhantomFix — Data Control (scanner.py)
+Script chamado pelo Core como subprocesso. Recebe o caminho de uma pasta
+já extraída e o caminho de um arquivo de saída, roda Semgrep + ZAP +
+Gitleaks + Trivy e escreve o resultado bruto em JSON.
+
+Responsabilidade: APENAS coleta de dados.
+Correlação e scoring ficam no analyser.py.
 
 Uso:
-    python analyser.py <findings.json> <saida.json>
+    python scanner.py <pasta_extraida> <arquivo_saida.json>
 """
 
+import subprocess
 import json
-import os
 import sys
+import os
 import time
-from pathlib import Path
-from datetime import datetime
 import requests
+from datetime import datetime
+from pathlib import Path
 
+# ── Configuração via variáveis de ambiente ────────────────────────────────────
+ZAP_TIMEOUT = int(os.getenv("ZAP_TIMEOUT", "3600"))
+ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
 
-class AnalyserAgent:
-    def __init__(self, groq_api_key=None):
-        self.api_key = groq_api_key or os.getenv("OLLAMA_ANALYSER_KEY")
-        if not self.api_key:
-            raise ValueError("Defina a variável de ambiente OLLAMA_API_KEY.")
-        self.url = "https://ollama.com/v1/chat/completions"
-        self.model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+# ── Argumentos ────────────────────────────────────────────────────────────────
+if len(sys.argv) < 3:
+    print("Uso: python scanner.py <pasta_extraida> <arquivo_saida.json>")
+    sys.exit(1)
 
-    def _call_llm(self, prompt: str) -> str:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type":  "application/json"
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": "Você é um analista de segurança. Responda apenas com JSON válido, sem comentários adicionais."},
-                {"role": "user",   "content": prompt}
-            ],
-            "temperature": 0.2,
-            "max_tokens":  800,
-            "reasoning_effort": "low",
-            "include_reasoning": False
-        }
+PASTA         = Path(sys.argv[1]).resolve()
+ARQUIVO_SAIDA = Path(sys.argv[2]).resolve()
 
-        for tentativa in range(5):
-            try:
-                resp = requests.post(self.url, headers=headers, json=payload, timeout=60)
+if not PASTA.exists():
+    print(f"Pasta não encontrada: {PASTA}")
+    sys.exit(1)
 
-                if resp.status_code == 429:
-                    retry_after = int(resp.headers.get("retry-after", 60))
-                    print(f"\n  ⏳ Rate limit — aguardando {retry_after}s...")
-                    time.sleep(retry_after + 1)
-                    continue
+# ── Lê scan.config.json (opcional) ───────────────────────────────────────────
+config_path = PASTA / "scan.config.json"
+url_alvo    = None
 
-                resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"]
+if config_path.exists():
+    try:
+        config   = json.loads(config_path.read_text(encoding="utf-8"))
+        url_alvo = config.get("url")
+        print(f"Config encontrado. URL alvo: {url_alvo or 'não informada'}")
+    except json.JSONDecodeError:
+        print("scan.config.json inválido — ignorando")
 
-            except requests.exceptions.RequestException as e:
-                print(f"  Tentativa {tentativa+1} falhou: {e}")
-                time.sleep(2)
+vulnerabilidades = []
 
-        raise Exception("Falha ao comunicar com a API do Groq após 5 tentativas.")
+# ══════════════════════════════════════════════════════════════════════════════
+# PARTE 1 — SEMGREP (SAST)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n[1/4] Rodando Semgrep (SAST)...")
 
-    def barra_progresso(self, atual: int, total: int, largura: int = 35) -> str:
-        preenchido = int(largura * atual / total) if total > 0 else 0
-        barra      = "█" * preenchido + "░" * (largura - preenchido)
-        pct        = int(100 * atual / total) if total > 0 else 0
-        return f"  [{barra}] {pct:3d}% ({atual}/{total})"
+resultado_semgrep = subprocess.run(
+    ["semgrep", "--config=auto", "--json", "--quiet", str(PASTA)],
+    capture_output=True, text=True
+)
 
-    def analyze_findings(self, findings_path: Path, output_path: Path) -> Path | None:
-        if not findings_path.exists():
-            print(f"Arquivo não encontrado: {findings_path}")
-            return None
+try:
+    saida_semgrep = json.loads(resultado_semgrep.stdout)
+except json.JSONDecodeError:
+    print(f"  ⚠ Semgrep não retornou JSON válido: {resultado_semgrep.stderr[:300]}")
+    saida_semgrep = {"results": []}
 
-        data  = json.loads(findings_path.read_text(encoding="utf-8"))
-        vulns = data.get("vulnerabilidades", [])
+for item in saida_semgrep.get("results", []):
+    trecho = item.get("extra", {}).get("lines", "").strip()
+    if not trecho or trecho == "requires login":
+        try:
+            arquivo_path = Path(item.get("path", ""))
+            linha        = item.get("start", {}).get("line", 0)
+            if arquivo_path.exists() and linha > 0:
+                linhas = arquivo_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                inicio = max(0, linha - 4)
+                fim    = min(len(linhas), linha + 3)
+                trecho = "\n".join(linhas[inicio:fim])
+        except Exception:
+            trecho = "trecho não disponível"
 
-        limite = int(os.getenv("ANALYSER_LIMITE", "0"))
-        vulns_para_analisar = vulns[:limite] if limite > 0 else vulns
+    vulnerabilidades.append({
+        "id":               "",
+        "origem":           "semgrep",
+        "arquivo":          item.get("path", ""),
+        "linha":            item.get("start", {}).get("line", 0),
+        "tipo":             item.get("check_id", "").split(".")[-1],
+        "severidade":       item.get("extra", {}).get("severity", "DESCONHECIDA"),
+        "descricao":        item.get("extra", {}).get("message", ""),
+        "trecho_do_codigo": trecho,
+        "score":            0,
+        "justificativa":    "",
+    })
 
-        total = len(vulns_para_analisar)
-        print(f"\nAnalisando {total} vulnerabilidades com Groq ({self.model})...")
-        print(f"  (intervalo de 2s entre chamadas para respeitar o rate limit)\n")
+print(f"  → {len(vulnerabilidades)} achados")
 
-        enriched = []
-        for idx, vuln in enumerate(vulns_para_analisar, 1):
-            print(self.barra_progresso(idx - 1, total), end="\r", flush=True)
+# ══════════════════════════════════════════════════════════════════════════════
+# PARTE 2 — ZAP (DAST)
+# ══════════════════════════════════════════════════════════════════════════════
+def risco_zap_para_severidade(riskdesc: str) -> str:
+    r = riskdesc.lower()
+    if "high"   in r: return "ERROR"
+    if "medium" in r: return "WARNING"
+    return "INFO"
 
-            prompt = f"""Analise a vulnerabilidade abaixo e retorne **apenas** um objeto JSON com as chaves "score", "justificativa", "categoria" e "recomendacao". O JSON deve estar em uma linha, sem quebras de linha extras.
+print("\n[2/4] ZAP (DAST)...")
+contador_zap = 0
 
-Escala de score (0-10):
-- 9.0-10.0: Crítico — exploração trivial, impacto imediato (ex: RCE, SQLi com dados expostos)
-- 7.0-8.9:  Alto — exploração possível, impacto significativo (ex: XSS armazenado, IDOR)
-- 4.0-6.9:  Médio — exploração condicionada, impacto moderado (ex: headers ausentes, CORS)
-- 1.0-3.9:  Baixo — difícil exploração, impacto limitado (ex: informações de versão, timing)
-- 0.0-0.9:  Informativo — sem impacto direto
+def zap_get(endpoint: str, params: dict = {}) -> dict:
+    resp = requests.get(f"{ZAP_API_URL}{endpoint}", params=params, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
-Vulnerabilidade:
-{json.dumps(vuln, indent=2, ensure_ascii=False)}
+if url_alvo:
+    print(f"  URL alvo: {url_alvo}")
+    try:
+        print("  Rodando spider...")
+        spider_resp = zap_get("/JSON/spider/action/scan/", {"url": url_alvo})
+        scan_id     = spider_resp.get("scan")
 
-Responda exatamente assim (exemplo):
-{{"score": 8.5, "justificativa": "...", "categoria": "...", "recomendacao": "..."}}"""
-
-            try:
-                raw   = self._call_llm(prompt)
-                clean = raw.strip()
-
-                if "```json" in clean:
-                    clean = clean.split("```json")[1].split("```")[0].strip()
-                elif "```" in clean:
-                    clean = clean.split("```")[1].split("```")[0].strip()
-
-                start = clean.find("{")
-                end   = clean.rfind("}") + 1
-                if start != -1 and end > start:
-                    clean = clean[start:end]
-
-                result = json.loads(clean)
-                vuln["score"]         = result.get("score", "N/A")
-                vuln["justificativa"] = result.get("justificativa", "N/A")
-                vuln["categoria"]     = result.get("categoria", "N/A")
-                vuln["recomendacao"]  = result.get("recomendacao", "N/A")
-            except Exception as e:
-                print(f"\n  ⚠ Erro em {vuln.get('id', '?')}: {e}")
-                vuln["justificativa"] = f"Falha na análise: {str(e)[:100]}"
-                vuln["score"]         = None
-                vuln["categoria"]     = "Desconhecida"
-                vuln["recomendacao"]  = "Revisar manualmente"
-
-            enriched.append(vuln)
+        inicio = time.time()
+        while True:
+            status = zap_get("/JSON/spider/view/status/", {"scanId": scan_id})
+            if int(status.get("status", 0)) >= 100:
+                break
+            if time.time() - inicio > ZAP_TIMEOUT:
+                print(f"  ⚠ Spider excedeu {ZAP_TIMEOUT}s — seguindo.")
+                break
             time.sleep(2)
 
-        print(self.barra_progresso(total, total), flush=True)
-        print(f"\n  Análise concluída.")
+        print("  Rodando active scan...")
+        ascan_resp = zap_get("/JSON/ascan/action/scan/", {"url": url_alvo})
+        ascan_id   = ascan_resp.get("scan")
 
-        # Ordena por score decrescente
-        enriched_ordenado = sorted(
-            enriched,
-            key=lambda v: float(v.get("score") or 0),
-            reverse=True
-        )
+        inicio = time.time()
+        while True:
+            status = zap_get("/JSON/ascan/view/status/", {"scanId": ascan_id})
+            if int(status.get("status", 0)) >= 100:
+                break
+            if time.time() - inicio > ZAP_TIMEOUT:
+                print(f"  ⚠ Active scan excedeu {ZAP_TIMEOUT}s — coletando alertas disponíveis.")
+                break
+            time.sleep(3)
 
-        output = {
-            **data,
-            "analisado_por_agente": True,
-            "modelo_ia":            f"ollama-cloud/{self.model}",
-            "processado_em":        datetime.now().isoformat(),
-            "vulnerabilidades":     enriched_ordenado,
-        }
+        alertas_resp = zap_get("/JSON/core/view/alerts/", {"baseurl": url_alvo})
+        alertas      = alertas_resp.get("alerts", [])
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps(output, indent=2, ensure_ascii=False),
-            encoding="utf-8"
-        )
-        print(f"Resultado enriquecido salvo em: {output_path}")
-        return output_path
+        alertas_por_tipo: dict[str, dict] = {}
+        for alerta in alertas:
+            tipo        = alerta.get("alert", "desconhecido")
+            risco_atual = alerta.get("riskcode", 0)
+            if tipo not in alertas_por_tipo:
+                alertas_por_tipo[tipo] = alerta
+            else:
+                if risco_atual > alertas_por_tipo[tipo].get("riskcode", 0):
+                    alertas_por_tipo[tipo] = alerta
 
+        for alerta in alertas_por_tipo.values():
+            vulnerabilidades.append({
+                "id":               "",
+                "origem":           "zap",
+                "arquivo":          alerta.get("url", ""),
+                "linha":            0,
+                "tipo":             alerta.get("alert", "desconhecido").lower().replace(" ", "-"),
+                "severidade":       risco_zap_para_severidade(alerta.get("risk", "")),
+                "descricao":        alerta.get("description", ""),
+                "trecho_do_codigo": alerta.get("solution", ""),
+                "score":            0,
+                "justificativa":    "",
+            })
+            contador_zap += 1
 
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Uso: python analyser.py <findings.json> <saida.json>")
-        sys.exit(1)
+        print(f"  ({len(alertas)} alertas brutos → {contador_zap} tipos únicos após deduplicação)")
 
-    agent = AnalyserAgent()
-    agent.analyze_findings(Path(sys.argv[1]), Path(sys.argv[2]))
+    except requests.exceptions.ConnectionError:
+        print(f"  ⚠ Não foi possível conectar ao ZAP em {ZAP_API_URL}")
+    except Exception as e:
+        print(f"  ⚠ Erro ao consultar a API do ZAP: {e}")
+
+    print(f"  → {contador_zap} achados")
+else:
+    print("  Sem URL no config — pulando DAST.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PARTE 3 — GITLEAKS (Secrets)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n[3/4] Rodando Gitleaks (Secrets)...")
+contador_gitleaks = 0
+
+try:
+    resultado_gitleaks = subprocess.run(
+        [
+            "gitleaks", "detect",
+            "--source", str(PASTA),
+            "--report-format", "json",
+            "--report-path", "/dev/stdout",
+            "--no-git",
+            "--exit-code", "0",
+        ],
+        capture_output=True, text=True
+    )
+
+    saida_gl   = resultado_gitleaks.stdout.strip()
+    achados_gl = json.loads(saida_gl) if saida_gl else []
+
+    for item in achados_gl:
+        # Ofusca o valor real do secret — nunca salvar a credencial exposta
+        match_raw = item.get("Match", "")
+        secret    = item.get("Secret", "")
+        if secret and secret in match_raw:
+            trecho = match_raw.replace(secret, "[REDACTED]")
+        else:
+            trecho = match_raw
+
+        vulnerabilidades.append({
+            "id":               "",
+            "origem":           "gitleaks",
+            "arquivo":          item.get("File", ""),
+            "linha":            item.get("StartLine", 0),
+            "tipo":             item.get("RuleID", "secret-exposed"),
+            "severidade":       "ERROR",
+            "descricao":        item.get("Description", "Credencial ou segredo exposto no código"),
+            "trecho_do_codigo": trecho,
+            "score":            0,
+            "justificativa":    "",
+        })
+        contador_gitleaks += 1
+
+    print(f"  → {contador_gitleaks} achados")
+
+except FileNotFoundError:
+    print("  ⚠ Gitleaks não encontrado — verifique se está instalado e no PATH")
+except json.JSONDecodeError:
+    print("  ⚠ Gitleaks não retornou JSON válido")
+except Exception as e:
+    print(f"  ⚠ Erro ao rodar Gitleaks: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PARTE 4 — TRIVY (SCA — Dependências)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n[4/4] Rodando Trivy (SCA — Dependências)...")
+contador_trivy = 0
+
+try:
+    resultado_trivy = subprocess.run(
+        [
+            "trivy", "fs",
+            "--format", "json",
+            "--quiet",
+            "--scanners", "vuln",
+            str(PASTA),
+        ],
+        capture_output=True, text=True
+    )
+
+    saida_trivy = json.loads(resultado_trivy.stdout) if resultado_trivy.stdout.strip() else {}
+
+    for resultado in saida_trivy.get("Results", []):
+        arquivo_dep = resultado.get("Target", "")
+        for vuln in resultado.get("Vulnerabilities", []) or []:
+            pkg_name         = vuln.get("PkgName", "")
+            cve_id           = vuln.get("VulnerabilityID", "")
+            severidade_trivy = vuln.get("Severity", "UNKNOWN").upper()
+
+            mapa_sev = {
+                "CRITICAL": "ERROR",
+                "HIGH":     "ERROR",
+                "MEDIUM":   "WARNING",
+                "LOW":      "INFO",
+                "UNKNOWN":  "INFO",
+            }
+
+            descricao = (
+                f"{cve_id}: {vuln.get('Title', '')} — "
+                f"{pkg_name} {vuln.get('InstalledVersion', '')} "
+                f"(fix: {vuln.get('FixedVersion', 'sem fix disponível')})"
+            ).strip(" —")
+
+            vulnerabilidades.append({
+                "id":               "",
+                "origem":           "trivy",
+                "arquivo":          arquivo_dep,
+                "linha":            0,
+                "tipo":             "vulnerable-dependency",
+                "severidade":       mapa_sev.get(severidade_trivy, "INFO"),
+                "descricao":        descricao,
+                "trecho_do_codigo": vuln.get("Description", ""),
+                "score":            0,
+                "justificativa":    "",
+                # Campos extras preservados para a correlação no analyser.py
+                "pkg_name":         pkg_name,
+                "cve_id":           cve_id,
+                "sev_original":     severidade_trivy,
+            })
+            contador_trivy += 1
+
+    print(f"  → {contador_trivy} achados")
+
+except FileNotFoundError:
+    print("  ⚠ Trivy não encontrado — verifique se está instalado e no PATH")
+except json.JSONDecodeError:
+    print("  ⚠ Trivy não retornou JSON válido")
+except Exception as e:
+    print(f"  ⚠ Erro ao rodar Trivy: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FINALIZAÇÃO — numera IDs e escreve o JSON
+# ══════════════════════════════════════════════════════════════════════════════
+for i, v in enumerate(vulnerabilidades):
+    v["id"] = f"vuln-{i+1:03d}"
+
+total = len(vulnerabilidades)
+print(f"\n  Total combinado: {total} vulnerabilidades")
+print(f"    Semgrep:  {sum(1 for v in vulnerabilidades if v['origem'] == 'semgrep')}")
+print(f"    ZAP:      {sum(1 for v in vulnerabilidades if v['origem'] == 'zap')}")
+print(f"    Gitleaks: {sum(1 for v in vulnerabilidades if v['origem'] == 'gitleaks')}")
+print(f"    Trivy:    {sum(1 for v in vulnerabilidades if v['origem'] == 'trivy')}")
+
+resultado_final = {
+    "analisado_em":    datetime.now().isoformat(),
+    "total_encontrado": total,
+    "origem_semgrep":  sum(1 for v in vulnerabilidades if v["origem"] == "semgrep"),
+    "origem_zap":      sum(1 for v in vulnerabilidades if v["origem"] == "zap"),
+    "origem_gitleaks": sum(1 for v in vulnerabilidades if v["origem"] == "gitleaks"),
+    "origem_trivy":    sum(1 for v in vulnerabilidades if v["origem"] == "trivy"),
+    "vulnerabilidades": vulnerabilidades,
+}
+
+ARQUIVO_SAIDA.parent.mkdir(parents=True, exist_ok=True)
+ARQUIVO_SAIDA.write_text(
+    json.dumps(resultado_final, indent=2, ensure_ascii=False),
+    encoding="utf-8"
+)
+print(f"\nResultado escrito em: {ARQUIVO_SAIDA}")
