@@ -1,8 +1,10 @@
 """
 PhantomFix — Cliente
+Versão: 2.0
+
 Duas telas:
   1. TelaVinculacao — cola o token, valida, puxa o nome da conta
-  2. TelaAnalise    — escolhe pasta, envia para o Core
+  2. TelaAnalise    — escolhe pasta, descreve o projeto (opcional), envia para o Core
 """
 
 import zipfile
@@ -24,18 +26,18 @@ CORE_URL = os.getenv(
     "https://phantom-fix.southafricanorth.cloudapp.azure.com/api/scan",
 )
 LINK_URL = CORE_URL.replace("/scan", "/auth/link-client")
-ME_URL = CORE_URL.replace("/scan", "/auth/me-by-token")
+ME_URL   = CORE_URL.replace("/scan", "/auth/me-by-token")
 
 # ── Cores ─────────────────────────────────────────────────────────────────────
-BG = "#0B0F19"
-CARD = "#111827"
-BORDER = "#1F2937"
-PRIMARY = "#6366F1"
-SUCCESS = "#10B981"
-DANGER = "#EF4444"
-WARNING = "#F59E0B"
+BG        = "#0B0F19"
+CARD      = "#111827"
+BORDER    = "#1F2937"
+PRIMARY   = "#6366F1"
+SUCCESS   = "#10B981"
+DANGER    = "#EF4444"
+WARNING   = "#F59E0B"
 TEXT_MAIN = "#F9FAFB"
-TEXT_DIM = "#9CA3AF"
+TEXT_DIM  = "#9CA3AF"
 
 # ── Token persistido localmente ───────────────────────────────────────────────
 TOKEN_FILE = Path.home() / ".phantomfix_token"
@@ -57,16 +59,16 @@ def apagar_token():
 
 
 # ── Logo ──────────────────────────────────────────────────────────────────────
-BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
+BASE_DIR  = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 PATH_LOGO = BASE_DIR / "ghost_logo_large.png"
 
 
 def carregar_logo(tamanho=80):
     try:
         if PATH_LOGO.exists():
-            img = Image.open(PATH_LOGO)
+            img  = Image.open(PATH_LOGO)
             w, h = img.size
-            nh = int((tamanho / w) * h)
+            nh   = int((tamanho / w) * h)
             return ctk.CTkImage(light_image=img, dark_image=img, size=(tamanho, nh))
     except Exception:
         pass
@@ -150,7 +152,7 @@ class TelaVinculacao(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self,
-            text="👻 PhantomFix Client v1.0.0",
+            text="👻 PhantomFix Client v2.0.0",
             font=("Segoe UI", 11),
             text_color="#3F435C",
         ).grid(row=2, column=0, pady=12)
@@ -165,9 +167,7 @@ class TelaVinculacao(ctk.CTkFrame):
 
         self.btn.configure(state="disabled", text="Verificando...")
         self.lbl_status.configure(text="", text_color=DANGER)
-        threading.Thread(
-            target=self._verificar_token, args=(token,), daemon=True
-        ).start()
+        threading.Thread(target=self._verificar_token, args=(token,), daemon=True).start()
 
     def _verificar_token(self, token):
         try:
@@ -179,24 +179,15 @@ class TelaVinculacao(ctk.CTkFrame):
             elif resp.status_code == 404:
                 self.after(
                     0,
-                    lambda: self._erro(
-                        "Token não encontrado. Verifique e tente novamente."
-                    ),
+                    lambda: self._erro("Token não encontrado. Verifique e tente novamente."),
                 )
             else:
                 self.after(
                     0,
-                    lambda: self._erro(
-                        f"Erro do servidor ({resp.status_code}). Tente novamente."
-                    ),
+                    lambda: self._erro(f"Erro do servidor ({resp.status_code}). Tente novamente."),
                 )
         except requests.exceptions.ConnectionError:
-            self.after(
-                0,
-                lambda: self._erro(
-                    "Sem conexão com o servidor. Verifique sua internet."
-                ),
-            )
+            self.after(0, lambda: self._erro("Sem conexão com o servidor. Verifique sua internet."))
         except Exception as e:
             self.after(0, lambda: self._erro(f"Erro inesperado: {e}"))
 
@@ -220,20 +211,21 @@ class TelaVinculacao(ctk.CTkFrame):
 class TelaAnalise(ctk.CTkFrame):
     def __init__(self, master, token: str, nome: str, on_desvincular):
         super().__init__(master, fg_color=BG)
-        self.token = token
-        self.nome = nome or "Usuário"
+        self.token          = token
+        self.nome           = nome or "Usuário"
         self.on_desvincular = on_desvincular
         self.pasta_selecionada = None
-        self.timeline_steps = []
+        self.timeline_steps    = []
 
         self.grid_columnconfigure(0, weight=1)
-        for r in range(7):
+        for r in range(8):
             self.grid_rowconfigure(r, weight=0)
-        self.grid_rowconfigure(6, weight=1)
+        self.grid_rowconfigure(7, weight=1)
 
         self._build()
 
     def _build(self):
+        # ── Header ────────────────────────────────────────────────────────────
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 5), sticky="n")
 
@@ -244,10 +236,7 @@ class TelaAnalise(ctk.CTkFrame):
             ctk.CTkLabel(header, text="👻", font=("Segoe UI", 52)).pack()
 
         ctk.CTkLabel(
-            header,
-            text="PhantomFix",
-            font=("Segoe UI", 30, "bold"),
-            text_color=TEXT_MAIN,
+            header, text="PhantomFix", font=("Segoe UI", 30, "bold"), text_color=TEXT_MAIN
         ).pack(pady=(4, 0))
         ctk.CTkLabel(
             header,
@@ -257,11 +246,7 @@ class TelaAnalise(ctk.CTkFrame):
         ).pack()
 
         badge = ctk.CTkFrame(
-            header,
-            fg_color="#0D2B1F",
-            border_color=SUCCESS,
-            border_width=1,
-            corner_radius=20,
+            header, fg_color="#0D2B1F", border_color=SUCCESS, border_width=1, corner_radius=20
         )
         badge.pack(pady=(10, 0))
         ctk.CTkLabel(
@@ -283,17 +268,15 @@ class TelaAnalise(ctk.CTkFrame):
             command=self._confirmar_desvincular,
         ).pack(pady=(4, 0))
 
+        # ── Card: Repositório ─────────────────────────────────────────────────
         card_repo = self._card(row=1)
         card_repo.grid_columnconfigure(1, weight=1)
 
+        ctk.CTkLabel(card_repo, text="📁", font=("Segoe UI", 24), text_color=PRIMARY).grid(
+            row=0, column=0, rowspan=2, padx=(20, 15), sticky="w"
+        )
         ctk.CTkLabel(
-            card_repo, text="📁", font=("Segoe UI", 24), text_color=PRIMARY
-        ).grid(row=0, column=0, rowspan=2, padx=(20, 15), sticky="w")
-        ctk.CTkLabel(
-            card_repo,
-            text="Repositório",
-            font=("Segoe UI", 14, "bold"),
-            text_color=TEXT_MAIN,
+            card_repo, text="Repositório", font=("Segoe UI", 14, "bold"), text_color=TEXT_MAIN
         ).grid(row=0, column=1, sticky="w", pady=(12, 0))
         self.lbl_repo = ctk.CTkLabel(
             card_repo,
@@ -313,12 +296,13 @@ class TelaAnalise(ctk.CTkFrame):
             command=self._escolher_pasta,
         ).grid(row=0, column=2, rowspan=2, padx=20, sticky="e")
 
+        # ── Card: URL ─────────────────────────────────────────────────────────
         card_url = self._card(row=2)
         card_url.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(
-            card_url, text="🔗", font=("Segoe UI", 20), text_color=PRIMARY
-        ).grid(row=0, column=0, rowspan=2, padx=(20, 15), sticky="w")
+        ctk.CTkLabel(card_url, text="🔗", font=("Segoe UI", 20), text_color=PRIMARY).grid(
+            row=0, column=0, rowspan=2, padx=(20, 15), sticky="w"
+        )
         ctk.CTkLabel(
             card_url,
             text="URL da aplicação (opcional)",
@@ -343,15 +327,72 @@ class TelaAnalise(ctk.CTkFrame):
         )
         self.entry_url.grid(row=0, column=2, rowspan=2, padx=20, sticky="e")
 
-        card_prog = ctk.CTkFrame(
-            self,
-            fg_color=CARD,
-            border_color=BORDER,
-            border_width=1,
-            corner_radius=12,
-            height=170,
+        # ── Card: Contexto do projeto (NOVO) ──────────────────────────────────
+        card_ctx = ctk.CTkFrame(
+            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12
         )
-        card_prog.grid(row=3, column=0, padx=30, pady=5, sticky="ew")
+        card_ctx.grid(row=3, column=0, padx=30, pady=5, sticky="ew")
+        card_ctx.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(card_ctx, text="🧠", font=("Segoe UI", 20), text_color=PRIMARY).grid(
+            row=0, column=0, rowspan=2, padx=(20, 15), sticky="nw", pady=(14, 0)
+        )
+        ctk.CTkLabel(
+            card_ctx,
+            text="Conte sobre seu projeto (opcional)",
+            font=("Segoe UI", 14, "bold"),
+            text_color=TEXT_MAIN,
+        ).grid(row=0, column=1, sticky="w", pady=(12, 2))
+        ctk.CTkLabel(
+            card_ctx,
+            text="Quanto mais contexto você der, mais precisa será a análise de risco.",
+            font=("Segoe UI", 12),
+            text_color=TEXT_DIM,
+        ).grid(row=1, column=1, sticky="w", pady=(0, 6))
+
+        self.txt_contexto = ctk.CTkTextbox(
+            card_ctx,
+            height=90,
+            border_color=BORDER,
+            fg_color=BG,
+            text_color=TEXT_MAIN,
+            font=("Segoe UI", 12),
+            corner_radius=6,
+            wrap="word",
+        )
+        self.txt_contexto.grid(
+            row=2, column=0, columnspan=2, padx=20, pady=(0, 14), sticky="ew"
+        )
+        self.txt_contexto.insert(
+            "0.0",
+            "Ex: É um e-commerce que processa pagamentos e armazena dados pessoais de clientes. "
+            "Fica exposto à internet e precisa estar em conformidade com a LGPD.",
+        )
+        self.txt_contexto.configure(text_color=TEXT_DIM)
+
+        # Limpa o placeholder ao focar
+        def _on_focus_in(e):
+            if self.txt_contexto.cget("text_color") == TEXT_DIM:
+                self.txt_contexto.delete("0.0", "end")
+                self.txt_contexto.configure(text_color=TEXT_MAIN)
+
+        def _on_focus_out(e):
+            if not self.txt_contexto.get("0.0", "end").strip():
+                self.txt_contexto.insert(
+                    "0.0",
+                    "Ex: É um e-commerce que processa pagamentos e armazena dados pessoais de clientes. "
+                    "Fica exposto à internet e precisa estar em conformidade com a LGPD.",
+                )
+                self.txt_contexto.configure(text_color=TEXT_DIM)
+
+        self.txt_contexto.bind("<FocusIn>",  _on_focus_in)
+        self.txt_contexto.bind("<FocusOut>", _on_focus_out)
+
+        # ── Card: Progresso ───────────────────────────────────────────────────
+        card_prog = ctk.CTkFrame(
+            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=170
+        )
+        card_prog.grid(row=4, column=0, padx=30, pady=5, sticky="ew")
         card_prog.pack_propagate(False)
 
         ctk.CTkLabel(
@@ -365,13 +406,9 @@ class TelaAnalise(ctk.CTkFrame):
         tl_frame.pack(fill="x", padx=40, pady=5)
         self._build_timeline(tl_frame)
 
-        si = ctk.CTkFrame(
-            card_prog, fg_color=BG, corner_radius=6, border_width=1, border_color=BORDER
-        )
+        si = ctk.CTkFrame(card_prog, fg_color=BG, corner_radius=6, border_width=1, border_color=BORDER)
         si.pack(fill="x", padx=20, pady=(10, 12))
-        self.icon_status = ctk.CTkLabel(
-            si, text="ℹ️", font=("Segoe UI", 14), text_color=PRIMARY
-        )
+        self.icon_status = ctk.CTkLabel(si, text="ℹ️", font=("Segoe UI", 14), text_color=PRIMARY)
         self.icon_status.pack(side="left", padx=(12, 5), pady=8)
         self.lbl_status = ctk.CTkLabel(
             si,
@@ -381,8 +418,9 @@ class TelaAnalise(ctk.CTkFrame):
         )
         self.lbl_status.pack(side="left", pady=8)
 
+        # ── Botão iniciar ─────────────────────────────────────────────────────
         action = ctk.CTkFrame(self, fg_color="transparent")
-        action.grid(row=4, column=0, padx=30, pady=10, sticky="e")
+        action.grid(row=5, column=0, padx=30, pady=10, sticky="e")
         self.btn_iniciar = ctk.CTkButton(
             action,
             text="🚀 Iniciar Análise",
@@ -399,19 +437,14 @@ class TelaAnalise(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self,
-            text="👻 PhantomFix Client v1.0.0",
+            text="👻 PhantomFix Client v2.0.0",
             font=("Segoe UI", 11),
             text_color="#3F435C",
-        ).grid(row=6, column=0, pady=15, sticky="s")
+        ).grid(row=7, column=0, pady=15, sticky="s")
 
     def _card(self, row):
         c = ctk.CTkFrame(
-            self,
-            fg_color=CARD,
-            border_color=BORDER,
-            border_width=1,
-            corner_radius=12,
-            height=100,
+            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=100
         )
         c.grid(row=row, column=0, padx=30, pady=5, sticky="ew")
         c.grid_propagate(False)
@@ -421,45 +454,31 @@ class TelaAnalise(ctk.CTkFrame):
         steps = [
             ("1", "Repositório", "📁"),
             ("2", "Compactando", "📄"),
-            ("3", "Enviando", "☁️"),
-            ("4", "Analisando", "🛡️"),
+            ("3", "Enviando",    "☁️"),
+            ("4", "Analisando",  "🛡️"),
         ]
         parent.grid_columnconfigure(tuple(range(len(steps) * 2 - 1)), weight=1)
         for i, (num, label, icon) in enumerate(steps):
-            col = i * 2
+            col  = i * 2
             cont = ctk.CTkFrame(parent, fg_color="transparent")
             cont.grid(row=0, column=col, sticky="nsew")
             circle = ctk.CTkLabel(
-                cont,
-                text=num,
-                width=28,
-                height=28,
-                corner_radius=14,
-                fg_color="#1F2937",
-                text_color=TEXT_DIM,
-                font=("Segoe UI", 12, "bold"),
+                cont, text=num, width=28, height=28, corner_radius=14,
+                fg_color="#1F2937", text_color=TEXT_DIM, font=("Segoe UI", 12, "bold"),
             )
             circle.pack()
-            lbl = ctk.CTkLabel(
-                cont, text=label, font=("Segoe UI", 11, "bold"), text_color="#4B5563"
-            )
+            lbl = ctk.CTkLabel(cont, text=label, font=("Segoe UI", 11, "bold"), text_color="#4B5563")
             lbl.pack(pady=(4, 0))
-            sub = ctk.CTkLabel(
-                cont, text="Aguardando", font=("Segoe UI", 10), text_color="#374151"
-            )
+            sub = ctk.CTkLabel(cont, text="Aguardando", font=("Segoe UI", 10), text_color="#374151")
             sub.pack()
-            self.timeline_steps.append(
-                {"circle": circle, "label": lbl, "sub": sub, "line": None}
-            )
+            self.timeline_steps.append({"circle": circle, "label": lbl, "sub": sub, "line": None})
             if i < len(steps) - 1:
                 line = ctk.CTkFrame(parent, fg_color="#1F2937", height=2)
                 line.grid(row=0, column=col + 1, sticky="ew", padx=5, pady=(12, 0))
                 self.timeline_steps[i]["line"] = line
 
     def _passo(self, idx, status, cor):
-        self.timeline_steps[idx]["circle"].configure(
-            fg_color=cor, text_color=TEXT_MAIN
-        )
+        self.timeline_steps[idx]["circle"].configure(fg_color=cor, text_color=TEXT_MAIN)
         self.timeline_steps[idx]["label"].configure(text_color=TEXT_MAIN)
         self.timeline_steps[idx]["sub"].configure(text=status, text_color=cor)
         if idx > 0 and self.timeline_steps[idx - 1]["line"]:
@@ -470,12 +489,9 @@ class TelaAnalise(ctk.CTkFrame):
         if pasta:
             self.pasta_selecionada = Path(pasta)
             self.lbl_repo.configure(
-                text=f"Selecionado: .../{self.pasta_selecionada.name}",
-                text_color=PRIMARY,
+                text=f"Selecionado: .../{self.pasta_selecionada.name}", text_color=PRIMARY
             )
-            self.lbl_status.configure(
-                text=f"Pronto para analisar '{self.pasta_selecionada.name}'."
-            )
+            self.lbl_status.configure(text=f"Pronto para analisar '{self.pasta_selecionada.name}'.")
             self._passo(0, "Ok", PRIMARY)
             self.btn_iniciar.configure(state="normal")
 
@@ -488,25 +504,31 @@ class TelaAnalise(ctk.CTkFrame):
             apagar_token()
             self.on_desvincular()
 
+    def _ler_contexto(self) -> str:
+        """Retorna o texto do campo de contexto, ou string vazia se for o placeholder."""
+        texto = self.txt_contexto.get("0.0", "end").strip()
+        if self.txt_contexto.cget("text_color") == TEXT_DIM:
+            return ""  # ainda é o placeholder
+        return texto
+
     def _disparar(self):
         self.btn_iniciar.configure(state="disabled")
-        url = self.entry_url.get().strip() or None
+        url      = self.entry_url.get().strip() or None
+        contexto = self._ler_contexto() or None
         threading.Thread(
             target=self._processar,
-            args=(self.pasta_selecionada, url),
+            args=(self.pasta_selecionada, url, contexto),
             daemon=True,
         ).start()
 
-    def _processar(self, pasta, url):
+    def _processar(self, pasta, url, contexto):
         try:
             self._safe_status("Compactando repositório...", 1, "Executando", WARNING)
             with tempfile.TemporaryDirectory() as tmp:
                 cfg = None
                 if url:
                     cfg = pasta / "scan.config.json"
-                    cfg.write_text(
-                        json.dumps({"url": url}, indent=2), encoding="utf-8"
-                    )
+                    cfg.write_text(json.dumps({"url": url}, indent=2), encoding="utf-8")
 
                 zip_path = Path(tmp) / f"{pasta.name}.zip"
                 self._zipar(pasta, zip_path)
@@ -514,8 +536,8 @@ class TelaAnalise(ctk.CTkFrame):
                     cfg.unlink()
 
                 self._safe_status("Enviando...", 1, "Concluído", SUCCESS)
-                self._safe_status("Enviando...", 2, "Enviando", WARNING)
-                self._enviar(zip_path, pasta.name)
+                self._safe_status("Enviando...", 2, "Enviando",  WARNING)
+                self._enviar(zip_path, pasta.name, contexto)
         except Exception as e:
             self._safe_fim(erro=str(e))
 
@@ -528,21 +550,23 @@ class TelaAnalise(ctk.CTkFrame):
                 ):
                     zf.write(arq, arq.relative_to(pasta))
 
-    def _enviar(self, zip_path, repo_nome):
+    def _enviar(self, zip_path, repo_nome, contexto):
         try:
+            data = {"repositorio": repo_nome, "token": self.token}
+            if contexto:
+                data["contexto_projeto"] = contexto
+
             with open(zip_path, "rb") as f:
                 resp = requests.post(
                     CORE_URL,
                     files={"arquivo": (zip_path.name, f, "application/zip")},
-                    data={"repositorio": repo_nome, "token": self.token},
+                    data=data,
                     timeout=300,
                 )
             if resp.status_code == 200:
                 self._safe_fim(sucesso=resp.json())
             else:
-                self._safe_fim(
-                    erro=f"Servidor respondeu {resp.status_code}: {resp.text[:200]}"
-                )
+                self._safe_fim(erro=f"Servidor respondeu {resp.status_code}: {resp.text[:200]}")
         except Exception as e:
             self._safe_fim(erro=str(e))
 
@@ -551,7 +575,6 @@ class TelaAnalise(ctk.CTkFrame):
             self.lbl_status.configure(text=texto)
             if idx is not None:
                 self._passo(idx, status, cor)
-
         self.after(0, fn)
 
     def _safe_fim(self, sucesso=None, erro=None):
@@ -566,11 +589,9 @@ class TelaAnalise(ctk.CTkFrame):
                         s["sub"].configure(text="Falhou", text_color=DANGER)
                 messagebox.showerror("Erro", erro)
             else:
-                self._passo(2, "Enviado", SUCCESS)
+                self._passo(2, "Enviado",    SUCCESS)
                 self._passo(3, "Finalizado", SUCCESS)
-                self.lbl_status.configure(
-                    text="Enviado com sucesso!", text_color=SUCCESS
-                )
+                self.lbl_status.configure(text="Enviado com sucesso!", text_color=SUCCESS)
                 self.icon_status.configure(text="✅", text_color=SUCCESS)
                 messagebox.showinfo(
                     "Enviado!",
@@ -578,7 +599,6 @@ class TelaAnalise(ctk.CTkFrame):
                     f"Protocolo: {sucesso.get('protocolo', 'N/A')}\n\n"
                     f"O resultado estará no dashboard em instantes.",
                 )
-
         self.after(0, fn)
 
 
@@ -589,7 +609,7 @@ class PhantomFixApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("PhantomFix — Scanner")
-        self.geometry("800x720")
+        self.geometry("800x780")
         self.configure(fg_color=BG)
         self.resizable(True, True)
 
@@ -613,8 +633,6 @@ class PhantomFixApp(ctk.CTk):
         self._tela_atual = tela
 
     def _ir_vinculacao_com_token(self, token: str):
-        """Token já salvo: busca o nome e abre a tela de análise."""
-
         def buscar():
             nome = ""
             try:
@@ -624,16 +642,12 @@ class PhantomFixApp(ctk.CTk):
             except Exception:
                 pass
             self.after(0, lambda: self._ir_analise(token, nome))
-
         threading.Thread(target=buscar, daemon=True).start()
 
     def _ir_analise(self, token: str, nome: str):
         self._limpar()
         tela = TelaAnalise(
-            self,
-            token=token,
-            nome=nome,
-            on_desvincular=self._ir_vinculacao,
+            self, token=token, nome=nome, on_desvincular=self._ir_vinculacao
         )
         tela.pack(fill="both", expand=True)
         self._tela_atual = tela
