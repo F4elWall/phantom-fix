@@ -1,3 +1,5 @@
+//Autora e revisão: Giovana Esmelardi
+
 import { useCallback, useEffect, useState } from "react";
 import Landing from "./components/Landing";
 import Login from "./components/Login";
