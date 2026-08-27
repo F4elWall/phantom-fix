@@ -62,7 +62,7 @@ OLLAMA_URL      = "https://ollama.com/v1/chat/completions"
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 
 RESEND_API_KEY  = os.getenv("RESEND_API_KEY")
-EMAIL_FROM      = os.getenv("EMAIL_FROM", "PhantomFix <noreply@phantomfix.com>")
+EMAIL_FROM      = os.getenv("EMAIL_FROM", "PhantomFix onboarding@resend.dev")
 DASHBOARD_URL   = os.getenv("DASHBOARD_URL", "https://phantom-fix.southafricanorth.cloudapp.azure.com")
 
 RESULTADOS_DIR  = Path(os.getenv("RESULTADOS_DIR", "../resultados"))
