@@ -1,7 +1,9 @@
 """
 PhantomFix — Analyser
 Versão: 3.1
+Autor e Revisor: Bernardo Coroa
 
+Descrição:
 Recebe o findings.json do scanner, executa correlação mecânica entre
 ferramentas e enriquece cada vulnerabilidade com score, justificativa,
 categoria e recomendação via LLM.
