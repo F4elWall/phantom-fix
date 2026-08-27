@@ -11,22 +11,133 @@ function formatarData(iso) {
   });
 }
 
+// FIX: gera um PDF real via API nativa de impressão do browser.
+// Antes usava Blob com text/plain, que baixava um .txt sem formatação.
+// Agora abre uma janela com HTML estilizado e dispara window.print(),
+// onde o usuário escolhe "Salvar como PDF" — zero dependências extras.
 function gerarPDF(relatorio) {
-  const conteudo = `RELATÓRIO EXECUTIVO — PhantomFix
-===============================
-Repositório: ${relatorio.repositorio || "—"}
-Gerado em: ${formatarData(relatorio.gerado_em)}
+  const textoHtml = (relatorio.texto || "Conteúdo não disponível.")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    // markdown bold
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // markdown headers
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    // separadores
+    .replace(/^---+$/gm, "<hr>")
+    // quebras de linha
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br>");
 
-${relatorio.texto || "Conteúdo não disponível."}
-`;
+  const janelaImpressao = window.open("", "_blank");
+  if (!janelaImpressao) {
+    alert("Permita pop-ups para gerar o PDF.");
+    return;
+  }
 
-  const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `relatorio-executivo-${relatorio.protocolo || "phantomfix"}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
+  janelaImpressao.document.write(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <title>Relatório Executivo — PhantomFix</title>
+      <style>
+        @media print {
+          body { margin: 0; }
+          .no-print { display: none; }
+        }
+        body {
+          font-family: 'Segoe UI', Arial, sans-serif;
+          max-width: 800px;
+          margin: 40px auto;
+          color: #111827;
+          line-height: 1.7;
+          font-size: 14px;
+        }
+        .header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 2px solid #6366F1;
+          padding-bottom: 16px;
+          margin-bottom: 24px;
+        }
+        .header-titulo { font-size: 22px; font-weight: 700; color: #6366F1; margin: 0; }
+        .header-sub { font-size: 12px; color: #6B7280; margin: 2px 0 0; }
+        .meta {
+          background: #F9FAFB;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-bottom: 28px;
+          font-size: 13px;
+          color: #374151;
+        }
+        h1, h2, h3 { color: #374151; margin: 24px 0 8px; }
+        h2 { font-size: 15px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; }
+        h3 { font-size: 14px; color: #6366F1; }
+        p { margin: 0 0 10px; }
+        hr { border: none; border-top: 1px solid #E5E7EB; margin: 20px 0; }
+        strong { color: #111827; }
+        .footer {
+          margin-top: 40px;
+          padding-top: 12px;
+          border-top: 1px solid #E5E7EB;
+          font-size: 11px;
+          color: #9CA3AF;
+          text-align: center;
+        }
+        .btn-imprimir {
+          display: block;
+          margin: 0 auto 24px;
+          padding: 10px 28px;
+          background: #6366F1;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+      </style>
+    </head>
+    <body>
+      <button class="btn-imprimir no-print" onclick="window.print()">
+        Salvar como PDF
+      </button>
+
+      <div class="header">
+        <div>
+          <p class="header-titulo">👻 PhantomFix — Relatório Executivo</p>
+          <p class="header-sub">Gerado automaticamente ao final da análise de segurança</p>
+        </div>
+      </div>
+
+      <div class="meta">
+        <strong>Repositório:</strong> ${relatorio.repositorio || "—"}&nbsp;&nbsp;·&nbsp;&nbsp;
+        <strong>Gerado em:</strong> ${formatarData(relatorio.gerado_em)}&nbsp;&nbsp;·&nbsp;&nbsp;
+        <strong>Protocolo:</strong> ${relatorio.protocolo || "—"}
+      </div>
+
+      <div><p>${textoHtml}</p></div>
+
+      <div class="footer">
+        PhantomFix · Relatório gerado automaticamente · Não substitui auditoria de segurança profissional.
+      </div>
+    </body>
+    </html>
+  `);
+
+  janelaImpressao.document.close();
+
+  // Aguarda o render antes de abrir o diálogo de impressão
+  janelaImpressao.onload = () => janelaImpressao.print();
+  setTimeout(() => {
+    try { janelaImpressao.print(); } catch { /* já foi chamado pelo onload */ }
+  }, 800);
 }
 
 export default function RelatorioExecutivoView({ relatorio, onAcessarDashboard }) {
@@ -42,6 +153,9 @@ export default function RelatorioExecutivoView({ relatorio, onAcessarDashboard }
     }
   }
 
+  // FIX: marcarRelatorioLido usava query param (?protocolo=X) mas o Core
+  // espera path param (/relatorio-executivo/{protocolo}/lido).
+  // A correção está no api.js — aqui o handler não muda.
   async function handleAcessar() {
     setAcessando(true);
     try {
@@ -149,7 +263,7 @@ export default function RelatorioExecutivoView({ relatorio, onAcessarDashboard }
               <path d="M9 3v9M5 9l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M3 15h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            {baixando ? "Gerando..." : "Baixar relatório (.txt)"}
+            {baixando ? "Gerando..." : "Baixar relatório (PDF)"}
           </button>
 
           <button
@@ -199,7 +313,6 @@ function parsearSecoes(texto) {
       };
     } else {
       if (!secaoAtual) secaoAtual = { titulo: null, paragrafos: [] };
-      // agrupa linhas consecutivas não-vazias num mesmo parágrafo
       const ultimo = secaoAtual.paragrafos[secaoAtual.paragrafos.length - 1];
       if (ultimo && ultimo !== "") {
         secaoAtual.paragrafos[secaoAtual.paragrafos.length - 1] = ultimo + " " + trimada;
