@@ -1,4 +1,5 @@
 """
+Autora e revisor: Giovana Esmelardi
 PhantomFix — Spirit
 Agente que usa Groq (llama-3.3-70b-versatile) com texto extraído dos PDFs
 de legislação (LGPD, ISO 27001) para responder perguntas sobre impacto
