@@ -90,7 +90,7 @@ function VulnLinha({ vuln }) {
 }
 
 // ── ResultsView ────────────────────────────────────────────────────────────────
-export default function ResultsView({ relatorio, scanState, spiritAberto, onToggleSpirit, onVerHistorico, onAbrirPipeline, onSair }) {
+export default function ResultsView({ relatorio, scanState, spiritAberto, onToggleSpirit, onVerHistorico, onAbrirPipeline, onSair, onVerRelatorioExecutivo }) {
   const [tabAtiva, setTabAtiva] = useState("todas");
   const [pagina, setPagina] = useState(1);
 
@@ -194,6 +194,22 @@ export default function ResultsView({ relatorio, scanState, spiritAberto, onTogg
             </div>
           </div>
         </div>
+
+        {/* ── Relatório Executivo ── */}
+        {onVerRelatorioExecutivo && (
+          <button
+            type="button"
+            className="btn-relatorio-executivo"
+            onClick={onVerRelatorioExecutivo}
+          >
+            <span className="btn-relatorio-executivo-icone">📋</span>
+            <span className="btn-relatorio-executivo-texto">
+              <strong>Relatório Executivo</strong>
+              <span>Visão CISO desta análise · gerado pelo Spirit</span>
+            </span>
+            <span className="btn-relatorio-executivo-seta">→</span>
+          </button>
+        )}
 
         {/* ── Prioritárias ── */}
         <div className="prioridade-hero">
