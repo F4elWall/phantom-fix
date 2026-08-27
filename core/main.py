@@ -382,7 +382,8 @@ def enviar_email_conclusao(
         relatorio.get("origem_trivy",    0)
     )
 
-       html = f"""<!DOCTYPE html>
+# Define o corpo do e-mail
+    html_body = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#0B0F19;font-family:'Segoe UI',Arial,sans-serif;">
@@ -433,7 +434,7 @@ def enviar_email_conclusao(
     </td></tr>
   </table>
 </body>
-</html>"""tml>"""
+</html>"""
 
     # ── Monta a mensagem ──────────────────────────────────────────────────────
     msg = MIMEMultipart()
@@ -473,7 +474,6 @@ def enviar_email_conclusao(
         print(f"  ✓ E-mail enviado para {email_destino}{sufixo}")
     except Exception as e:
         print(f"  ⚠ Falha ao enviar e-mail: {e}")
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ROTAS DE AUTENTICAÇÃO
