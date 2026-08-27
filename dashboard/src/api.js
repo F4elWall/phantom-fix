@@ -165,14 +165,18 @@ export async function buscarRelatorioExecutivo(protocolo) {
   return resp.json();
 }
 
+// FIX: o Core espera path param — POST /relatorio-executivo/{protocolo}/lido
+// Antes usava query param (?protocolo=X), que não batia com nenhuma rota e
+// retornava 404, impedindo o fluxo de "marcar como lido".
 export async function marcarRelatorioLido(protocolo) {
-  const url = protocolo
-    ? `${CORE_URL}/relatorio-executivo/lido?protocolo=${encodeURIComponent(protocolo)}`
-    : `${CORE_URL}/relatorio-executivo/lido`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: authHeaders(),
-  });
+  if (!protocolo) throw new Error("Protocolo obrigatório");
+  const resp = await fetch(
+    `${CORE_URL}/relatorio-executivo/${encodeURIComponent(protocolo)}/lido`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    }
+  );
   if (!resp.ok) throw new Error("Não foi possível marcar como lido");
   return resp.json();
 }
