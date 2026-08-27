@@ -1,4 +1,5 @@
 """
+Autor e Revisão: Rafael Toschi
 PhantomFix — Ghost (v1.1)
 Gera correções automáticas de código usando LLM (Ollama Cloud).
 """
