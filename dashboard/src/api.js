@@ -153,6 +153,30 @@ export async function detectarScanAtivo() {
   }
 }
 
+export async function buscarRelatorioExecutivo(protocolo) {
+  const url = protocolo
+    ? `${CORE_URL}/relatorio-executivo?protocolo=${encodeURIComponent(protocolo)}`
+    : `${CORE_URL}/relatorio-executivo`;
+  const resp = await fetch(url, { headers: authHeaders() });
+  if (!resp.ok) {
+    if (resp.status === 404) return null;
+    throw new Error("Core não respondeu");
+  }
+  return resp.json();
+}
+
+export async function marcarRelatorioLido(protocolo) {
+  const url = protocolo
+    ? `${CORE_URL}/relatorio-executivo/lido?protocolo=${encodeURIComponent(protocolo)}`
+    : `${CORE_URL}/relatorio-executivo/lido`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!resp.ok) throw new Error("Não foi possível marcar como lido");
+  return resp.json();
+}
+
 export async function perguntarSpirit(pergunta, relatorio = null) {
   const resp = await fetch(`${SPIRIT_URL}/perguntar`, {
     method: "POST",
