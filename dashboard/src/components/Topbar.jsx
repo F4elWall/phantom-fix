@@ -74,6 +74,7 @@ export default function Topbar({
   onSair,
 }) {
   const rodando = scanState?.tipo === "rodando";
+  const relatorioExecutivoNaoLido = scanState?.relatorioExecutivoNaoLido ?? false;
   const [dropdownAberto, setDropdownAberto] = useState(false);
   const [novoToken, setNovoToken] = useState(null);
   const [regenando, setRegenando] = useState(false);
@@ -134,15 +135,25 @@ export default function Topbar({
           <button
             type="button"
             className={`topbar-chip topbar-chip-btn topbar-scan-status ${
-              rodando ? "scan-rodando" : "scan-concluido"
+              rodando ? "scan-rodando" : relatorioExecutivoNaoLido ? "scan-novo-relatorio" : "scan-concluido"
             }`}
             onClick={() => {
               if (rodando && onAbrirPipeline) onAbrirPipeline(scanState.protocolo);
             }}
-            title={rodando ? "Abrir Pipeline View" : "Nenhum scan em andamento"}
+            title={
+              rodando
+                ? "Abrir Pipeline View"
+                : relatorioExecutivoNaoLido
+                ? "Novo relatório executivo disponível"
+                : "Nenhum scan em andamento"
+            }
           >
-            <span className={`scan-dot ${rodando ? "pulse" : ""}`} />
-            {rodando ? "Rodando novo scan" : "Scan concluído"}
+            <span className={`scan-dot ${rodando ? "pulse" : relatorioExecutivoNaoLido ? "pulse" : ""}`} />
+            {rodando
+              ? "Rodando novo scan"
+              : relatorioExecutivoNaoLido
+              ? "Novo relatório disponível"
+              : "Scan concluído"}
           </button>
 
           {onVerHistorico && (
