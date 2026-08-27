@@ -8,8 +8,9 @@ import ResultsView from "./components/ResultsView";
 import SpiritChat from "./components/SpiritChat";
 import PipelineView from "./components/PipelineView";
 import HistoricoView from "./components/HistoricoView";
+import RelatorioExecutivoView from "./components/RelatorioExecutivoView";
 import "./App.css";
-import { detectarScanAtivo, buscarRelatorio } from "./api";
+import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./api";
 
 /**
  * Telas possíveis:
@@ -40,8 +41,10 @@ const [tela, setTela] = useState(
 );
 const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
   const [relatorio, setRelatorio] = useState(null);
+  const [relatorioExecutivo, setRelatorioExecutivo] = useState(null);
   const [protocoloPipeline, setProtocoloPipeline] = useState(null);
   const [scanState, setScanState] = useState({ tipo: "concluido" });
+  const [relatorioExecutivoNaoLido, setRelatorioExecutivoNaoLido] = useState(false);
   const [spiritAberto, setSpiritAberto] = useState(true);
 
   // ── Polling de scan ativo (só quando no dashboard) ──────────────────────
@@ -57,6 +60,16 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
         if (cancel) return;
         if (ativo) {
           setScanState({ tipo: "rodando", protocolo: ativo.protocolo, repositorio: ativo.repositorio });
+
+          // Detecta relatório executivo pronto e redireciona
+          if (ativo.relatorio_executivo_pronto && tela !== "relatorio_executivo") {
+            const exec = await buscarRelatorioExecutivo(ativo.protocolo);
+            if (exec && !cancel) {
+              setRelatorioExecutivo(exec);
+              setRelatorioExecutivoNaoLido(true);
+              setTela("relatorio_executivo");
+            }
+          }
         } else {
           setScanState({ tipo: "concluido" });
         }
@@ -66,7 +79,7 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
     tick();
     const id = setInterval(tick, 4000);
     return () => { cancel = true; clearInterval(id); };
-  }, [logado]);
+  }, [logado, tela]);
 
   // ── Recarrega relatório quando scan conclui ──────────────────────────────
   useEffect(() => {
@@ -118,8 +131,18 @@ function onCriouConta(dados) {
 
   function onConcluidoPipeline(rel) {
     setRelatorio(rel);
-    setTela("results");
     setScanState({ tipo: "concluido" });
+    // Se já há relatório executivo carregado, vai para ele; caso contrário, results
+    if (relatorioExecutivo) {
+      setTela("relatorio_executivo");
+    } else {
+      setTela("results");
+    }
+  }
+
+  function onAcessarDashboardCompleto() {
+    setRelatorioExecutivoNaoLido(false);
+    setTela(relatorio ? "results" : "home");
   }
 
   // ── Roteamento ────────────────────────────────────────────────────────────
@@ -170,13 +193,23 @@ function onCriouConta(dados) {
   }
 
   const dashboardClass = `dashboard ${spiritAberto ? "" : "spirit-recolhido"}`;
+  const scanStateComExecutivo = { ...scanState, relatorioExecutivoNaoLido };
+
+  if (tela === "relatorio_executivo" && relatorioExecutivo) {
+    return (
+      <RelatorioExecutivoView
+        relatorio={relatorioExecutivo}
+        onAcessarDashboard={onAcessarDashboardCompleto}
+      />
+    );
+  }
 
   if (tela === "pipeline" && protocoloPipeline) {
     return (
       <div className={dashboardClass}>
         <PipelineView
           protocolo={protocoloPipeline}
-          scanState={scanState}
+          scanState={scanStateComExecutivo}
           spiritAberto={spiritAberto}
           onToggleSpirit={() => setSpiritAberto((v) => !v)}
           onVerHistorico={() => setTela("historico")}
@@ -193,7 +226,7 @@ function onCriouConta(dados) {
     return (
       <div className={dashboardClass}>
         <HistoricoView
-          scanState={scanState}
+          scanState={scanStateComExecutivo}
           spiritAberto={spiritAberto}
           onToggleSpirit={() => setSpiritAberto((v) => !v)}
           onAbrirPipeline={abrirPipeline}
@@ -222,7 +255,7 @@ function onCriouConta(dados) {
     <div className={dashboardClass}>
       <ResultsView
         relatorio={relatorio}
-        scanState={scanState}
+        scanState={scanStateComExecutivo}
         spiritAberto={spiritAberto}
         onToggleSpirit={() => setSpiritAberto((v) => !v)}
         onVerHistorico={() => setTela("historico")}
