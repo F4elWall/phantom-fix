@@ -229,7 +229,7 @@ class AnalyserAgent:
         if not self.api_key:
             raise ValueError("Defina a variável de ambiente OLLAMA_ANALYSER_KEY.")
         self.url            = "https://ollama.com/v1/chat/completions"
-        self.model          = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+        self.model          = os.getenv("OLLAMA_MODEL", "gpt-oss:120b")
         self.contexto_proj  = carregar_contexto_projeto()
 
         if self.contexto_proj:
