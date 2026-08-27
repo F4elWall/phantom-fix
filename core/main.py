@@ -16,8 +16,10 @@ Novidades v0.7.0:
   - /relatorio-executivo/{protocolo}/pdf — endpoint para download do PDF
 """
 
+import html as html_lib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +36,7 @@ from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPExcept
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
+from weasyprint import HTML
 
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
@@ -280,6 +283,84 @@ TOP 20 VULNERABILIDADES (para embasar o relatório):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PDF — gera o relatório executivo em PDF real (backend), via WeasyPrint
+# ══════════════════════════════════════════════════════════════════════════════
+def _texto_executivo_para_html(texto: str | None) -> str:
+    """Mesma conversão markdown-lite que o dashboard faz no browser
+    (RelatorioExecutivoView.jsx / gerarPDF), só que em Python."""
+    texto_html = html_lib.escape(texto or "Conteúdo não disponível.")
+    texto_html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", texto_html)
+    texto_html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", texto_html, flags=re.MULTILINE)
+    texto_html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", texto_html, flags=re.MULTILINE)
+    texto_html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", texto_html, flags=re.MULTILINE)
+    texto_html = re.sub(r"^---+$", r"<hr>", texto_html, flags=re.MULTILINE)
+    texto_html = texto_html.replace("\n\n", "</p><p>").replace("\n", "<br>")
+    return texto_html
+
+
+def gerar_pdf_relatorio_executivo(relatorio_executivo: dict) -> bytes:
+    """Renderiza o relatório executivo como PDF no servidor (WeasyPrint),
+    sem depender de o usuário abrir o diálogo de impressão do navegador."""
+    texto_html = _texto_executivo_para_html(relatorio_executivo.get("texto"))
+
+    gerado_em = relatorio_executivo.get("gerado_em")
+    data_fmt = "—"
+    if gerado_em:
+        try:
+            data_fmt = datetime.fromisoformat(gerado_em).strftime("%d/%m/%Y %H:%M")
+        except ValueError:
+            data_fmt = gerado_em
+
+    repo       = html_lib.escape(relatorio_executivo.get("repositorio") or "—")
+    protocolo  = html_lib.escape(relatorio_executivo.get("protocolo") or "—")
+
+    html_doc = f"""
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {{ margin: 2.2cm 2cm; }}
+    body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #111827; line-height: 1.7; font-size: 12px; }}
+    .header {{ border-bottom: 2px solid #6366F1; padding-bottom: 16px; margin-bottom: 24px; }}
+    .header-titulo {{ font-size: 20px; font-weight: 700; color: #6366F1; margin: 0; }}
+    .header-sub {{ font-size: 11px; color: #6B7280; margin: 2px 0 0; }}
+    .meta {{ background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
+             padding: 12px 16px; margin-bottom: 24px; font-size: 12px; color: #374151; }}
+    h1, h2, h3 {{ color: #374151; margin: 20px 0 8px; }}
+    h2 {{ font-size: 14px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; }}
+    h3 {{ font-size: 13px; color: #6366F1; }}
+    p {{ margin: 0 0 10px; }}
+    hr {{ border: none; border-top: 1px solid #E5E7EB; margin: 16px 0; }}
+    strong {{ color: #111827; }}
+    .footer {{ margin-top: 32px; padding-top: 10px; border-top: 1px solid #E5E7EB;
+               font-size: 10px; color: #9CA3AF; text-align: center; }}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <p class="header-titulo">👻 PhantomFix — Relatório Executivo</p>
+    <p class="header-sub">Gerado automaticamente ao final da análise de segurança</p>
+  </div>
+
+  <div class="meta">
+    <strong>Repositório:</strong> {repo} &nbsp;·&nbsp;
+    <strong>Gerado em:</strong> {data_fmt} &nbsp;·&nbsp;
+    <strong>Protocolo:</strong> {protocolo}
+  </div>
+
+  <div><p>{texto_html}</p></div>
+
+  <div class="footer">
+    PhantomFix · Relatório gerado automaticamente · Não substitui auditoria de segurança profissional.
+  </div>
+</body>
+</html>
+"""
+    return HTML(string=html_doc, base_url=".").write_pdf()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # E-MAIL — notificação via Resend
 # ══════════════════════════════════════════════════════════════════════════════
 def enviar_email_conclusao(
@@ -312,6 +393,23 @@ def enviar_email_conclusao(
         resumo_executivo_html = "".join(f"<p style='margin:0 0 12px 0'>{p}</p>" for p in paragrafos)
 
     link_dashboard = f"{DASHBOARD_URL}?protocolo={protocolo}"
+
+    # Gera o PDF do relatório executivo para anexar ao e-mail
+    anexos = []
+    if texto_executivo:
+        try:
+            pdf_bytes = gerar_pdf_relatorio_executivo({
+                "texto":       texto_executivo,
+                "repositorio": repo,
+                "protocolo":   protocolo,
+                "gerado_em":   datetime.now(timezone.utc).isoformat(),
+            })
+            anexos.append({
+                "filename": f"relatorio-executivo-{protocolo}.pdf",
+                "content":  list(pdf_bytes),  # Resend espera bytes como lista de ints
+            })
+        except Exception as e:
+            print(f"  ⚠ Falha ao gerar PDF do relatório executivo: {e}")
 
     html = f"""
 <!DOCTYPE html>
@@ -414,13 +512,18 @@ def enviar_email_conclusao(
 """
 
     try:
-        resend.Emails.send({
+        payload = {
             "from":    EMAIL_FROM,
             "to":      email_destino,
             "subject": f"[PhantomFix] Análise concluída — {repo} ({status_txt})",
             "html":    html,
-        })
-        print(f"  ✓ E-mail enviado para {email_destino}")
+        }
+        if anexos:
+            payload["attachments"] = anexos
+
+        resend.Emails.send(payload)
+        sufixo = " (com PDF do relatório anexado)" if anexos else ""
+        print(f"  ✓ E-mail enviado para {email_destino}{sufixo}")
     except Exception as e:
         print(f"  ⚠ Falha ao enviar e-mail: {e}")
 
@@ -877,6 +980,24 @@ def relatorio_executivo(
     if resultado.get("user_id") != usuario["id"]:
         raise HTTPException(status_code=403, detail="Acesso negado")
     return resultado
+
+
+@app.get("/relatorio-executivo/{protocolo}/pdf")
+def baixar_relatorio_executivo_pdf(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
+    """Gera e retorna o PDF do relatório executivo (backend, via WeasyPrint) —
+    substitui o fluxo antigo de window.print() no dashboard."""
+    resultado = carregar_relatorio_executivo(usuario["id"], protocolo)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Relatório executivo não encontrado")
+    if resultado.get("user_id") != usuario["id"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    pdf_bytes = gerar_pdf_relatorio_executivo(resultado)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="relatorio-executivo-{protocolo}.pdf"'},
+    )
 
 
 @app.post("/relatorio-executivo/{protocolo}/lido")
