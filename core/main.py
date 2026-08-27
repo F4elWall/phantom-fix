@@ -382,81 +382,49 @@ def enviar_email_conclusao(
         relatorio.get("origem_trivy",    0)
     )
 
-    html_body = f"""<!DOCTYPE html>
+       html = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#0B0F19;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0B0F19;padding:40px 0;">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#111827;border-radius:12px;border:1px solid #1F2937;overflow:hidden;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#111827;border-radius:12px;border:1px solid #1F2937;overflow:hidden;">
 
         <tr>
-          <td style="background:#0B0F19;padding:32px 40px;text-align:center;border-bottom:1px solid #1F2937;">
-            <p style="margin:0;font-size:32px">👻</p>
-            <h1 style="margin:8px 0 4px;color:#F9FAFB;font-size:22px;font-weight:700">PhantomFix</h1>
-            <p style="margin:0;color:#9CA3AF;font-size:13px;letter-spacing:1px">RELATÓRIO DE ANÁLISE CONCLUÍDO</p>
+          <td style="padding:40px 40px 32px;text-align:center;">
+            <p style="margin:0 0 8px;font-size:36px">👻</p>
+            <h1 style="margin:0 0 6px;color:#F9FAFB;font-size:22px;font-weight:700">Análise concluída</h1>
+            <p style="margin:0;color:#9CA3AF;font-size:14px">{repo}</p>
           </td>
         </tr>
 
         <tr>
-          <td style="padding:32px 40px 0;">
-            <p style="margin:0 0 8px;color:#F9FAFB;font-size:16px">Olá, <strong>{nome_usuario}</strong>.</p>
-            <p style="margin:0;color:#9CA3AF;font-size:14px;line-height:1.6">
-              A análise de segurança do repositório <strong style="color:#6366F1">{repo}</strong> foi concluída.
-              Veja abaixo o resumo dos resultados.
+          <td style="padding:0 40px 32px;">
+            <p style="margin:0 0 16px;color:#D1D5DB;font-size:15px;line-height:1.6">
+              Olá, <strong style="color:#F9FAFB">{nome_usuario}</strong>. Sua análise de segurança terminou.
+              O relatório executivo completo está em anexo neste e-mail.
+            </p>
+            <p style="margin:0;color:#D1D5DB;font-size:15px;line-height:1.6">
+              Para ver os detalhes das vulnerabilidades, correções sugeridas e conversar com o Spirit,
+              acesse o dashboard com a sua conta:
             </p>
           </td>
         </tr>
 
         <tr>
-          <td style="padding:24px 40px 0;">
-            <div style="background:#0B0F19;border:1px solid {cor_status};border-radius:8px;padding:16px 20px;text-align:center;">
-              <p style="margin:0;color:{cor_status};font-size:13px;font-weight:700;letter-spacing:1px">
-                NÍVEL DE RISCO: {status_txt}
-              </p>
-            </div>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="padding:24px 40px 0;">
-            <table width="100%" cellpadding="0" cellspacing="8">
-              <tr>
-                <td width="25%" style="background:#0B0F19;border-radius:8px;padding:16px;text-align:center;">
-                  <p style="margin:0;color:#F9FAFB;font-size:28px;font-weight:700">{total}</p>
-                  <p style="margin:4px 0 0;color:#9CA3AF;font-size:11px">TOTAL</p>
-                </td>
-                <td width="25%" style="background:#0B0F19;border-radius:8px;padding:16px;text-align:center;">
-                  <p style="margin:0;color:#EF4444;font-size:28px;font-weight:700">{criticas}</p>
-                  <p style="margin:4px 0 0;color:#9CA3AF;font-size:11px">CRÍTICAS</p>
-                </td>
-                <td width="25%" style="background:#0B0F19;border-radius:8px;padding:16px;text-align:center;">
-                  <p style="margin:0;color:#F59E0B;font-size:28px;font-weight:700">{altas}</p>
-                  <p style="margin:4px 0 0;color:#9CA3AF;font-size:11px">ALTAS</p>
-                </td>
-                <td width="25%" style="background:#0B0F19;border-radius:8px;padding:16px;text-align:center;">
-                  <p style="margin:0;color:#6366F1;font-size:28px;font-weight:700">{total_scanners}</p>
-                  <p style="margin:4px 0 0;color:#9CA3AF;font-size:11px">SCANNERS</p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        {"<tr><td style='padding:24px 40px 0;'><div style='background:#0B0F19;border-left:3px solid #6366F1;border-radius:0 8px 8px 0;padding:20px 24px;'><p style='margin:0 0 12px;color:#6366F1;font-size:12px;font-weight:700;letter-spacing:1px'>SUMÁRIO EXECUTIVO</p><div style='color:#D1D5DB;font-size:13px;line-height:1.7'>" + resumo_executivo_html + "</div></div></td></tr>" if resumo_executivo_html else ""}
-
-        <tr>
-          <td style="padding:32px 40px;">
-            <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-      
-            </td></tr></table>
+          <td style="padding:0 40px 40px;text-align:center;">
+            <a href="{link_dashboard}"
+               style="display:inline-block;background:#6366F1;color:#ffffff;text-decoration:none;
+                      font-size:15px;font-weight:700;padding:14px 40px;border-radius:8px;">
+              Acessar Dashboard →
+            </a>
           </td>
         </tr>
 
         <tr>
           <td style="background:#0B0F19;padding:20px 40px;text-align:center;border-top:1px solid #1F2937;">
             <p style="margin:0;color:#4B5563;font-size:12px">
-              👻 PhantomFix · Este e-mail foi gerado automaticamente. Não responda.
+              👻 PhantomFix · Gerado automaticamente · Não responda este e-mail
             </p>
           </td>
         </tr>
@@ -465,7 +433,7 @@ def enviar_email_conclusao(
     </td></tr>
   </table>
 </body>
-</html>"""
+</html>"""tml>"""
 
     # ── Monta a mensagem ──────────────────────────────────────────────────────
     msg = MIMEMultipart()
