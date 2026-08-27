@@ -19,18 +19,22 @@ Ferramentas de segurança tradicionais costumam geram centenas de alertas a cada
 O PhantomFix resolve isso combinando análise estática (SAST) e dinâmica (DAST) com inteligência artificial para **priorizar**, **contextualizar** e **gerar correções automáticas** das vulnerabilidades que mais ameaçam a aplicação ou o sistema.
 
 Além disso, em nossas pesquisas sentimos falta de um "algo a mais", que fosse além de um espaço para ver problemas, mas onde pudesse ver claramente o significado dessas falhas. Foi o que nos inspirou a desenvolver um chatbot, capaz de se alimentar do contexto destas ferramentas para quantificar o grau das ameaças e ajudar na tomada de decisões.
+
 ---
 
 ## ✨ Funcionalidades
 
 - 🔍 **Análise SAST** com Semgrep — detecta vulnerabilidades no código-fonte
 - 🌐 **Análise DAST** com OWASP ZAP — testa a aplicação em tempo de execução
-- 🤖 **Priorização com IA** — um agente ranqueia as vulnerabilidades por criticidade real
+- 🔑 **Secrets Scanning** com Gitleaks — encontra credenciais e tokens expostos no repositório
+- 📦 **SCA / Análise de Dependências** com Trivy — identifica vulnerabilidades em bibliotecas e dependências
+- 🤖 **Priorização com IA** — um agente ranqueia as vulnerabilidades por criticidade real, correlacionando os resultados de todas as ferramentas
 - 🛠️ **Correções automáticas (Ghost)** — gera patches de código, pronto para utilizar.
 - ⚖️ **Compliance com Spirit AI** — analisa impacto na LGPD, ISO 27001 e NIST via chatbot
 - 👤 **Autenticação multi-tenant** — cada usuário vê apenas seus próprios scans
 - 🖥️ **Client desktop** — executável Windows para envio seguro de repositórios
 - 📊 **Dashboard completo** — score de segurança, histórico de scans e filtros por severidade
+- 📧 **Notificação por e-mail** — relatório em PDF enviado automaticamente ao fim de cada análise
 
 ---
 
@@ -74,9 +78,9 @@ No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análi
                                ┌────────────▼──┐   ┌──────▼──────────┐
                                │  Data Control │   │     Analyser    │
                                │  Semgrep+ZAP  │   │   Groq (LLaMA)  │
-                               └───────────────┘   └──────┬──────────┘
-                                                          │
-                                                   ┌──────▼──────────┐
+                               │  Gitleaks     │   └──────┬──────────┘
+                               │  Trivy        │          │
+                               └───────────────┘   ┌──────▼──────────┐
                                                    │      Ghost      │
                                                    │  Correções IA   │
                                                    └─────────────────┘
@@ -95,8 +99,8 @@ No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análi
 | Serviço | Descrição | Porta padrão |
 |---|---|---|
 | **Core** | API central, auth, pipeline, multi-tenancy | 8000 |
-| **Data Control** | Scanner SAST (Semgrep) + DAST (ZAP) | — |
-| **Analyser** | Enriquecimento e priorização com IA (Groq) | — |
+| **Data Control** | Scanner SAST (Semgrep) + DAST (ZAP) + Secrets (Gitleaks) + SCA (Trivy) | — |
+| **Analyser** | Correlação entre ferramentas + enriquecimento e priorização com IA (Groq) | — |
 | **Ghost** | Geração de correções automáticas | 8002 |
 | **Spirit** | Assistente de compliance via chatbot | 8001 |
 | **Dashboard** | Interface web React | 5173 |
@@ -111,14 +115,13 @@ phantom-fix/
 ├── analyser/           # Enriquecimento com IA
 ├── ghost/              # Geração de correções
 ├── spirit/             # Assistente de compliance
-├── data-control/       # Scanner SAST + DAST
+│   └── legislacao/     # PDFs de referência (LGPD, ISO 27001, NIST CSF)
+├── data-control/       # Scanner SAST + DAST + Secrets + SCA
 ├── database/           # SQLite e lógica de auth
 ├── client/             # Executável desktop
 ├── dashboard/          # Interface web React
 └── resultados/         # Relatórios por usuário
 ```
-
-</details>
 
 ---
 
