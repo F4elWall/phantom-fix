@@ -2148,3 +2148,173 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 
 .topbar-dropdown-sair:hover { color: var(--alert) !important; }
+
+/* ── Topbar: estado "novo relatório disponível" ───────────────── */
+.scan-novo-relatorio {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #f59e0b !important;
+}
+.scan-novo-relatorio .scan-dot {
+  background: #f59e0b;
+}
+
+/* ── RelatorioExecutivoView ──────────────────────────────────── */
+.exec-page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.exec-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 60px;
+  border-bottom: 1px solid var(--mist);
+  background: var(--surface);
+}
+.exec-topbar-logo {
+  display: flex; align-items: center; gap: 10px;
+}
+.exec-topbar-logo img { height: 28px; width: 28px; object-fit: contain; }
+.exec-topbar-name { font-weight: 700; font-size: 15px; color: var(--ink); }
+
+.exec-badge-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--violet);
+  margin-right: 7px;
+}
+.exec-topbar-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--violet);
+  background: rgba(139,92,246,.12);
+  border: 1px solid rgba(139,92,246,.25);
+  border-radius: 20px;
+  padding: 4px 14px;
+  display: flex; align-items: center;
+}
+
+.exec-main {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ── Hero ── */
+.exec-hero {
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.exec-hero-icon {
+  font-size: 40px; line-height: 1; flex-shrink: 0; margin-top: 4px;
+}
+.exec-titulo {
+  font-size: 28px; font-weight: 800;
+  color: var(--ink); margin: 0 0 6px;
+}
+.exec-subtitulo {
+  font-size: 15px; color: var(--ink-dim); margin: 0 0 6px;
+}
+.exec-data {
+  font-size: 12px; color: var(--ink-dim); opacity: .7; margin: 0;
+}
+
+/* ── Métricas ── */
+.exec-metricas {
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.exec-metrica {
+  flex: 1; min-width: 110px;
+  background: var(--surface);
+  border: 1px solid var(--mist);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.exec-metrica-critica { border-color: rgba(239,68,68,.35); }
+.exec-metrica-valor {
+  font-size: 28px; font-weight: 800; color: var(--ink);
+}
+.exec-metrica-critica .exec-metrica-valor { color: var(--alert); }
+.exec-metrica-label {
+  font-size: 12px; color: var(--ink-dim); font-weight: 500;
+}
+
+/* ── Corpo ── */
+.exec-corpo {
+  background: var(--surface);
+  border: 1px solid var(--mist);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.exec-secao { display: flex; flex-direction: column; gap: 12px; }
+
+.exec-secao-titulo {
+  font-size: 14px; font-weight: 700;
+  color: var(--violet);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mist);
+}
+
+.exec-secao-conteudo p {
+  font-size: 14px; line-height: 1.75;
+  color: var(--ink-dim); margin: 0 0 8px;
+}
+.exec-secao-conteudo p:last-child { margin-bottom: 0; }
+
+.exec-texto-bruto p {
+  white-space: pre-wrap;
+}
+
+/* ── Ações ── */
+.exec-acoes {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+
+.exec-btn-download {
+  display: flex; align-items: center; gap: 8px;
+  background: transparent;
+  border: 1.5px solid var(--mist);
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+  font-size: 13px; font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.exec-btn-download:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.exec-btn-download:disabled { opacity: .5; cursor: not-allowed; }
+
+.exec-btn-dashboard {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--violet);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 13px; font-weight: 700;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: opacity .15s;
+  margin-left: auto;
+}
+.exec-btn-dashboard:hover { opacity: .88; }
+.exec-btn-dashboard:disabled { opacity: .5; cursor: not-allowed; }
