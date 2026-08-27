@@ -12,6 +12,16 @@ const ETAPAS = [
     label: "Geração de Relatório",
     statuses: ["analisando", "priorizado", "corrigindo"],
   },
+  {
+    id: "contexto",
+    label: "Contexto de Compliance",
+    statuses: ["processando_contexto"],
+  },
+  {
+    id: "executivo",
+    label: "Relatório Executivo",
+    statuses: ["gerando_relatorio"],
+  },
 ];
 
 const ORDEM_STATUS = [
@@ -21,6 +31,8 @@ const ORDEM_STATUS = [
   "analisando",
   "priorizado",
   "corrigindo",
+  "processando_contexto",
+  "gerando_relatorio",
   "concluido",
   "erro",
 ];
@@ -32,6 +44,8 @@ const LOGS_POR_STATUS = {
   analisando: "Correlacionando resultados com IA...",
   priorizado: "Priorizando vulnerabilidades por risco de negócio...",
   corrigindo: "Ghost gerando sugestões de correção...",
+  processando_contexto: "Spirit processando contexto de compliance...",
+  gerando_relatorio: "Gerando relatório executivo consolidado...",
   concluido: "Relatório final gerado",
   erro: "Falha no pipeline",
 };
@@ -74,10 +88,21 @@ function estadoEtapa(etapaId, statusCore) {
     return "aguardando";
   }
   if (etapaId === "relatorio") {
-    if (statusCore === "concluido") return "concluido";
+    if (idx > 5) return "concluido";
     if (["analisando", "priorizado", "corrigindo"].includes(statusCore))
       return "executando";
     if (idx < 3) return "aguardando";
+    return "aguardando";
+  }
+  if (etapaId === "contexto") {
+    if (idx > 6) return "concluido";
+    if (statusCore === "processando_contexto") return "executando";
+    if (idx < 6) return "aguardando";
+    return "aguardando";
+  }
+  if (etapaId === "executivo") {
+    if (statusCore === "concluido") return "concluido";
+    if (statusCore === "gerando_relatorio") return "executando";
     return "aguardando";
   }
   return "aguardando";
@@ -89,12 +114,12 @@ function estadoNoArquitetura(noId, statusCore) {
 
   const map = {
     client: idx >= 0 ? "concluido" : "aguardando",
-    core: idx >= 0 ? (idx < 6 ? "executando" : "concluido") : "aguardando",
+    core: idx >= 0 ? (idx < 8 ? "executando" : "concluido") : "aguardando",
     datacontrol: idx >= 1 ? (idx <= 2 ? "executando" : "concluido") : "aguardando",
     sast: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
     dast: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
-    secrets: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
-    deps: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
+    gitleaks: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
+    trivy: idx > 2 ? "concluido" : statusCore === "escaneando" ? "executando" : "aguardando",
     ia:
       idx >= 6
         ? "concluido"
@@ -106,10 +131,16 @@ function estadoNoArquitetura(noId, statusCore) {
     ghost:
       statusCore === "corrigindo"
         ? "ia"
-        : statusCore === "concluido"
+        : idx >= 6
           ? "concluido"
           : "aguardando",
-    relatorio: statusCore === "concluido" ? "concluido" : "aguardando",
+    spirit:
+      statusCore === "processando_contexto"
+        ? "ia"
+        : idx >= 7
+          ? "concluido"
+          : "aguardando",
+    relatorio: statusCore === "concluido" ? "concluido" : statusCore === "gerando_relatorio" ? "executando" : "aguardando",
   };
   return map[noId] || "aguardando";
 }
@@ -294,19 +325,22 @@ export default function PipelineView({
               );
             })}
             <span className="arch-arrow">→</span>
-<div className="arch-branch">
-  {[
-    { id: "sast", label: "SAST" },
-    { id: "dast", label: "DAST" },
-  ].map((n) => (
-    <div key={n.id} className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}>
-      {n.label}
-    </div>
-  ))}
-</div>
+            <div className="arch-branch">
+              {[
+                { id: "sast", label: "SAST" },
+                { id: "dast", label: "DAST" },
+                { id: "gitleaks", label: "Gitleaks" },
+                { id: "trivy", label: "Trivy" },
+              ].map((n) => (
+                <div key={n.id} className={`arch-node small estado-${estadoNoArquitetura(n.id, statusCore)}`}>
+                  {n.label}
+                </div>
+              ))}
+            </div>
             {[
               { id: "ia", label: "AI Correlation" },
               { id: "ghost", label: "Ghost" },
+              { id: "spirit", label: "Spirit" },
               { id: "relatorio", label: "Relatório Final" },
             ].map((n) => (
               <>
