@@ -1,10 +1,14 @@
 """
 PhantomFix — Cliente
-Versão: 2.0
+Versão: 2.1
 
 Duas telas:
   1. TelaVinculacao — cola o token, valida, puxa o nome da conta
   2. TelaAnalise    — escolhe pasta, descreve o projeto (opcional), envia para o Core
+
+v2.1 — FIX: TelaAnalise agora usa CTkScrollableFrame internamente para que
+o botão "Iniciar Análise" nunca fique oculto fora da área visível,
+independente do tamanho da janela ou DPI da tela.
 """
 
 import zipfile
@@ -152,7 +156,7 @@ class TelaVinculacao(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self,
-            text="👻 PhantomFix Client v2.0.0",
+            text="👻 PhantomFix Client v2.1.0",
             font=("Segoe UI", 11),
             text_color="#3F435C",
         ).grid(row=2, column=0, pady=12)
@@ -217,16 +221,29 @@ class TelaAnalise(ctk.CTkFrame):
         self.pasta_selecionada = None
         self.timeline_steps    = []
 
+        # FIX v2.1: o frame externo ocupa tudo e contém apenas o scroll.
+        # Todos os widgets ficam dentro do _scroll, então o conteúdo nunca
+        # some fora da janela independente do tamanho ou DPI da tela.
+        self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
-        for r in range(8):
-            self.grid_rowconfigure(r, weight=0)
-        self.grid_rowconfigure(7, weight=1)
+
+        self._scroll = ctk.CTkScrollableFrame(
+            self,
+            fg_color=BG,
+            scrollbar_button_color=BORDER,
+            scrollbar_button_hover_color=PRIMARY,
+        )
+        self._scroll.grid(row=0, column=0, sticky="nsew")
+        self._scroll.grid_columnconfigure(0, weight=1)
 
         self._build()
 
     def _build(self):
+        # Referência ao container pai de todos os widgets
+        p = self._scroll
+
         # ── Header ────────────────────────────────────────────────────────────
-        header = ctk.CTkFrame(self, fg_color="transparent")
+        header = ctk.CTkFrame(p, fg_color="transparent")
         header.grid(row=0, column=0, pady=(20, 5), sticky="n")
 
         logo = carregar_logo(100)
@@ -269,7 +286,7 @@ class TelaAnalise(ctk.CTkFrame):
         ).pack(pady=(4, 0))
 
         # ── Card: Repositório ─────────────────────────────────────────────────
-        card_repo = self._card(row=1)
+        card_repo = self._card(p, row=1)
         card_repo.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(card_repo, text="📁", font=("Segoe UI", 24), text_color=PRIMARY).grid(
@@ -297,7 +314,7 @@ class TelaAnalise(ctk.CTkFrame):
         ).grid(row=0, column=2, rowspan=2, padx=20, sticky="e")
 
         # ── Card: URL ─────────────────────────────────────────────────────────
-        card_url = self._card(row=2)
+        card_url = self._card(p, row=2)
         card_url.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(card_url, text="🔗", font=("Segoe UI", 20), text_color=PRIMARY).grid(
@@ -327,9 +344,9 @@ class TelaAnalise(ctk.CTkFrame):
         )
         self.entry_url.grid(row=0, column=2, rowspan=2, padx=20, sticky="e")
 
-        # ── Card: Contexto do projeto (NOVO) ──────────────────────────────────
+        # ── Card: Contexto do projeto ─────────────────────────────────────────
         card_ctx = ctk.CTkFrame(
-            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12
+            p, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12
         )
         card_ctx.grid(row=3, column=0, padx=30, pady=5, sticky="ew")
         card_ctx.grid_columnconfigure(1, weight=1)
@@ -370,7 +387,6 @@ class TelaAnalise(ctk.CTkFrame):
         )
         self.txt_contexto.configure(text_color=TEXT_DIM)
 
-        # Limpa o placeholder ao focar
         def _on_focus_in(e):
             if self.txt_contexto.cget("text_color") == TEXT_DIM:
                 self.txt_contexto.delete("0.0", "end")
@@ -390,7 +406,7 @@ class TelaAnalise(ctk.CTkFrame):
 
         # ── Card: Progresso ───────────────────────────────────────────────────
         card_prog = ctk.CTkFrame(
-            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=170
+            p, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=170
         )
         card_prog.grid(row=4, column=0, padx=30, pady=5, sticky="ew")
         card_prog.pack_propagate(False)
@@ -419,7 +435,7 @@ class TelaAnalise(ctk.CTkFrame):
         self.lbl_status.pack(side="left", pady=8)
 
         # ── Botão iniciar ─────────────────────────────────────────────────────
-        action = ctk.CTkFrame(self, fg_color="transparent")
+        action = ctk.CTkFrame(p, fg_color="transparent")
         action.grid(row=5, column=0, padx=30, pady=10, sticky="e")
         self.btn_iniciar = ctk.CTkButton(
             action,
@@ -435,16 +451,18 @@ class TelaAnalise(ctk.CTkFrame):
         )
         self.btn_iniciar.pack()
 
+        # ── Rodapé ────────────────────────────────────────────────────────────
         ctk.CTkLabel(
-            self,
-            text="👻 PhantomFix Client v2.0.0",
+            p,
+            text="👻 PhantomFix Client v2.1.0",
             font=("Segoe UI", 11),
             text_color="#3F435C",
-        ).grid(row=7, column=0, pady=15, sticky="s")
+        ).grid(row=6, column=0, pady=15)
 
-    def _card(self, row):
+    def _card(self, parent, row):
+        """Cria um card filho de `parent` na linha `row` do grid."""
         c = ctk.CTkFrame(
-            self, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=100
+            parent, fg_color=CARD, border_color=BORDER, border_width=1, corner_radius=12, height=100
         )
         c.grid(row=row, column=0, padx=30, pady=5, sticky="ew")
         c.grid_propagate(False)
@@ -505,10 +523,9 @@ class TelaAnalise(ctk.CTkFrame):
             self.on_desvincular()
 
     def _ler_contexto(self) -> str:
-        """Retorna o texto do campo de contexto, ou string vazia se for o placeholder."""
         texto = self.txt_contexto.get("0.0", "end").strip()
         if self.txt_contexto.cget("text_color") == TEXT_DIM:
-            return ""  # ainda é o placeholder
+            return ""
         return texto
 
     def _disparar(self):
@@ -609,7 +626,8 @@ class PhantomFixApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("PhantomFix — Scanner")
-        self.geometry("800x780")
+        self.geometry("800x700")   # altura reduzida — o scroll resolve o resto
+        self.minsize(600, 500)     # garante funcionamento em qualquer resolução
         self.configure(fg_color=BG)
         self.resizable(True, True)
 
