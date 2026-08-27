@@ -21,7 +21,7 @@ from pydantic import BaseModel
 # ── Configuração ───────────────────────────────────────────────────────────────
 OLLAMA_API_KEY = os.getenv("OLLAMA_SPIRIT_KEY")
 CORE_URL       = os.getenv("CORE_URL",     "http://localhost:8000")
-MODELO         = os.getenv("SPIRIT_MODEL", "gpt-oss:20b")
+MODELO         = os.getenv("SPIRIT_MODEL", "gpt-oss:120b")
 LEGISLACAO_DIR = Path(os.getenv("LEGISLACAO_DIR", "./legislacao"))
 
 OLLAMA_URL = "https://ollama.com/v1/chat/completions"
