@@ -212,13 +212,27 @@ Descrição do projeto:
 # RELATÓRIO EXECUTIVO — gerado pelo Spirit após o Ghost
 # ══════════════════════════════════════════════════════════════════════════════
 async def gerar_relatorio_executivo(relatorio: dict) -> str | None:
-    total      = relatorio.get("total_encontrado", 0)
-    vulns      = relatorio.get("vulnerabilidades", [])
-    criticas   = sum(1 for v in vulns if float(v.get("score") or 0) >= 9.0)
-    altas      = sum(1 for v in vulns if 7.0 <= float(v.get("score") or 0) < 9.0)
-    medias     = sum(1 for v in vulns if 4.0 <= float(v.get("score") or 0) < 7.0)
-    correlac   = sum(1 for v in vulns if v.get("tags_correlacao"))
-    top_vulns  = sorted(vulns, key=lambda v: float(v.get("score") or 0), reverse=True)[:20]
+    total    = relatorio.get("total_encontrado", 0)
+    vulns    = relatorio.get("vulnerabilidades", [])
+    criticas = sum(1 for v in vulns if float(v.get("score") or 0) >= 9.0)
+    altas    = sum(1 for v in vulns if 7.0 <= float(v.get("score") or 0) < 9.0)
+    medias   = sum(1 for v in vulns if 4.0 <= float(v.get("score") or 0) < 7.0)
+    correlac = sum(1 for v in vulns if v.get("tags_correlacao"))
+
+    top_vulns = sorted(vulns, key=lambda v: float(v.get("score") or 0), reverse=True)[:15]
+
+    # Remove campos volumosos que não agregam ao relatório executivo
+    # mas consomem a maior parte do contexto (trecho_do_codigo sozinho pode
+    # ter centenas de linhas; correcao e explicacao são igualmente grandes)
+    CAMPOS_EXECUTIVO = {
+        "id", "tipo", "severidade", "score", "descricao",
+        "arquivo", "linha", "categoria", "recomendacao",
+        "origem", "tags_correlacao",
+    }
+    top_vulns_slim = [
+        {k: v for k, v in vuln.items() if k in CAMPOS_EXECUTIVO}
+        for vuln in top_vulns
+    ]
 
     pergunta = f"""Gere um RELATÓRIO EXECUTIVO DE SEGURANÇA completo e formal, em linguagem de CISO,
 com base na análise abaixo. Este relatório será entregue à liderança da empresa.
@@ -236,32 +250,15 @@ DADOS DA ANÁLISE:
 ESTRUTURA OBRIGATÓRIA DO RELATÓRIO (siga exatamente esta ordem):
 
 1. SUMÁRIO EXECUTIVO
-   Parágrafo de 3–5 linhas resumindo a situação geral. Comece pelo que é mais importante.
-   Seja direto: se há risco crítico, diga isso primeiro.
-
 2. POSTURA DE SEGURANÇA ATUAL
-   Avaliação geral do nível de risco (Crítico / Alto / Médio / Baixo).
-   Justifique com base nos números.
-
 3. PRINCIPAIS AMEAÇAS IDENTIFICADAS
-   Liste as 5 vulnerabilidades mais graves com: nome, score, impacto real em linguagem de negócio.
-   Não use jargão técnico sem explicar.
-
 4. IMPACTO POTENCIAL AO NEGÓCIO
-   O que pode acontecer se as vulnerabilidades críticas forem exploradas?
-   Mencione: impacto financeiro, operacional, reputacional e regulatório (LGPD quando aplicável).
-
 5. CONFORMIDADE REGULATÓRIA
-   Avalie o alinhamento com LGPD, ISO 27001 e NIST. Cite artigos e controles relevantes.
-
 6. RECOMENDAÇÕES PRIORITÁRIAS
-   3–5 ações concretas, ordenadas por urgência. Cada uma com prazo sugerido.
-
 7. CONCLUSÃO
-   Frase final de encaminhamento para a liderança.
 
-TOP 20 VULNERABILIDADES (para embasar o relatório):
-{json.dumps(top_vulns, indent=2, ensure_ascii=False)}"""
+TOP 10 VULNERABILIDADES:
+{json.dumps(top_vulns_slim, indent=2, ensure_ascii=False)}"""
 
     try:
         async with httpx.AsyncClient(timeout=240) as cliente:
