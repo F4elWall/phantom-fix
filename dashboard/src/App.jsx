@@ -14,13 +14,15 @@ import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./
 
 /**
  * Telas possíveis:
- *  auth     → login ou signup (não autenticado)
- *  signup   → formulário de criar conta
- *  welcome  → pós-signup: exibe token + instrução de vínculo
- *  home     → carregando último relatório ou tela vazia
- *  pipeline → acompanhar scan em andamento
- *  results  → relatório de vulnerabilidades
- *  historico→ lista de scans anteriores
+ *  landing          → página inicial
+ *  auth             → login
+ *  signup           → criar conta
+ *  welcome          → pós-signup: exibe token + instrução de vínculo
+ *  home             → carregando último relatório ou tela vazia
+ *  pipeline         → acompanhar scan em andamento
+ *  relatorio_executivo → relatório executivo gerado pelo Spirit
+ *  results          → relatório de vulnerabilidades (dashboard completo)
+ *  historico        → lista de scans anteriores
  */
 
 function sessaoSalva() {
@@ -28,18 +30,17 @@ function sessaoSalva() {
 }
 
 export default function App() {
-  // Se já havia sessão salva, pula direto pro dashboard
-const dadosSalvos = sessaoSalva() ? {
-  token: localStorage.getItem("user_token"),
-  nome: localStorage.getItem("user_nome"),
-  client_linked: localStorage.getItem("client_linked") === "true",
-} : null;
+  const dadosSalvos = sessaoSalva() ? {
+    token: localStorage.getItem("user_token"),
+    nome: localStorage.getItem("user_nome"),
+    client_linked: localStorage.getItem("client_linked") === "true",
+  } : null;
 
-const [tela, setTela] = useState(
-  !dadosSalvos ? "landing" :
-  !dadosSalvos.client_linked ? "welcome" : "home"
-);
-const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
+  const [tela, setTela] = useState(
+    !dadosSalvos ? "landing" :
+    !dadosSalvos.client_linked ? "welcome" : "home"
+  );
+  const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
   const [relatorio, setRelatorio] = useState(null);
   const [relatorioExecutivo, setRelatorioExecutivo] = useState(null);
   const [protocoloPipeline, setProtocoloPipeline] = useState(null);
@@ -47,8 +48,8 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
   const [relatorioExecutivoNaoLido, setRelatorioExecutivoNaoLido] = useState(false);
   const [spiritAberto, setSpiritAberto] = useState(true);
 
-  // ── Polling de scan ativo (só quando no dashboard) ──────────────────────
-  const logado = !["auth", "signup", "welcome"].includes(tela);
+  // ── Polling de scan ativo ─────────────────────────────────────────────────
+  const logado = !["auth", "signup", "welcome", "landing"].includes(tela);
 
   useEffect(() => {
     if (!logado) return;
@@ -58,10 +59,11 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
       try {
         const ativo = await detectarScanAtivo();
         if (cancel) return;
+
         if (ativo) {
           setScanState({ tipo: "rodando", protocolo: ativo.protocolo, repositorio: ativo.repositorio });
 
-          // Detecta relatório executivo pronto e redireciona
+          // FIX: só redireciona para o executivo se ainda não estamos nessa tela
           if (ativo.relatorio_executivo_pronto && tela !== "relatorio_executivo") {
             const exec = await buscarRelatorioExecutivo(ativo.protocolo);
             if (exec && !cancel) {
@@ -81,7 +83,7 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
     return () => { cancel = true; clearInterval(id); };
   }, [logado, tela]);
 
-  // ── Recarrega relatório quando scan conclui ──────────────────────────────
+  // ── Recarrega relatório quando scan conclui ───────────────────────────────
   useEffect(() => {
     if (scanState.tipo === "concluido" && tela === "results") {
       buscarRelatorio().then((rel) => {
@@ -90,29 +92,31 @@ const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
     }
   }, [scanState.tipo]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   function sair() {
     localStorage.removeItem("session_token");
     localStorage.removeItem("user_nome");
     localStorage.removeItem("user_token");
+    localStorage.removeItem("client_linked");
     setRelatorio(null);
+    setRelatorioExecutivo(null);
     setProtocoloPipeline(null);
     setUsuarioAuth(null);
     setTela("landing");
   }
 
-function onLogin(dados) {
-  setUsuarioAuth(dados);
-  localStorage.setItem("client_linked", dados.client_linked ? "true" : "false");
-  setTela(dados.client_linked ? "home" : "welcome");
-}
+  function onLogin(dados) {
+    setUsuarioAuth(dados);
+    localStorage.setItem("client_linked", dados.client_linked ? "true" : "false");
+    setTela(dados.client_linked ? "home" : "welcome");
+  }
 
-function onCriouConta(dados) {
-  setUsuarioAuth(dados);
-  localStorage.setItem("client_linked", "false");
-  setTela("welcome");
-}
+  function onCriouConta(dados) {
+    setUsuarioAuth(dados);
+    localStorage.setItem("client_linked", "false");
+    setTela("welcome");
+  }
 
   function onAcessarDashboard() {
     setTela("home");
@@ -129,15 +133,24 @@ function onCriouConta(dados) {
     setTela("pipeline");
   }, []);
 
-  function onConcluidoPipeline(rel) {
+  // FIX — busca o relatório executivo no momento em que o pipeline conclui,
+  // antes de decidir para qual tela ir. Antes, relatorioExecutivo era sempre
+  // null aqui porque o polling ainda não havia rodado após a conclusão.
+  async function onConcluidoPipeline(rel) {
     setRelatorio(rel);
     setScanState({ tipo: "concluido" });
-    // Se já há relatório executivo carregado, vai para ele; caso contrário, results
-    if (relatorioExecutivo) {
-      setTela("relatorio_executivo");
-    } else {
-      setTela("results");
-    }
+
+    try {
+      const exec = await buscarRelatorioExecutivo(rel?.protocolo);
+      if (exec) {
+        setRelatorioExecutivo(exec);
+        setRelatorioExecutivoNaoLido(true);
+        setTela("relatorio_executivo");
+        return;
+      }
+    } catch { /* se Spirit falhou, segue para results normalmente */ }
+
+    setTela("results");
   }
 
   function onAcessarDashboardCompleto() {
@@ -177,7 +190,6 @@ function onCriouConta(dados) {
   }
 
   if (tela === "welcome") {
-    // usuarioAuth pode ser null após F5 — monta um objeto mínimo do localStorage
     const usuarioWelcome = usuarioAuth || {
       token: localStorage.getItem("user_token") || "",
       nome:  localStorage.getItem("user_nome")  || "Usuário",
@@ -242,11 +254,11 @@ function onCriouConta(dados) {
   if (!relatorio || tela === "home") {
     return (
       <div className="app-shell">
-      <Home
-        onRelatorioCarregado={onRelatorioCarregado}
-        onAbrirPipeline={abrirPipeline}
-        onSair={sair}
-      />
+        <Home
+          onRelatorioCarregado={onRelatorioCarregado}
+          onAbrirPipeline={abrirPipeline}
+          onSair={sair}
+        />
       </div>
     );
   }
