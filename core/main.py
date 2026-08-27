@@ -1,16 +1,12 @@
 """
 PhantomFix — Core
 Versão: 0.8.0
+Autor e revisor: Rafael Pedro
 
+Desrição:
 Recebe o .zip do cliente, extrai numa pasta temporária, aciona o scanner.py,
 aciona o analyser.py, aciona o Ghost, gera relatório executivo via Spirit
 e envia e-mail de notificação via Gmail (smtplib — sem dependência externa).
-
-Novidades v0.8.0:
-  - Migração de Resend → smtplib + Gmail App Password
-  - PDF do relatório executivo gerado via WeasyPrint e anexado ao e-mail
-  - Endpoint /relatorio-executivo/{protocolo}/pdf para download direto
-  - Spirit recebe max_tokens=8192 no relatório executivo (evita corte)
 """
 
 import html as html_lib
