@@ -1,4 +1,5 @@
 """
+Autor e revisor: Rafael Pedro
 PhantomFix — Database
 SQLite simples para gerenciar usuários, tokens e sessões.
 O arquivo phantomfix.db é criado automaticamente na primeira execução.
