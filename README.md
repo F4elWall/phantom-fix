@@ -77,7 +77,7 @@ No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análi
                                             │             │
                                ┌────────────▼──┐   ┌──────▼──────────┐
                                │  Data Control │   │     Analyser    │
-                               │  Semgrep+ZAP  │   │   Groq (LLaMA)  │
+                               │  Semgrep+ZAP  │   │ Ollama (LLaMA)  │
                                │  Gitleaks     │   └──────┬──────────┘
                                │  Trivy        │          │
                                └───────────────┘   ┌──────▼──────────┐
