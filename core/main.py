@@ -59,7 +59,7 @@ SPIRIT_URL      = os.getenv("SPIRIT_URL",       "http://localhost:8001")
 
 OLLAMA_API_KEY  = os.getenv("OLLAMA_ANALYSER_KEY")
 OLLAMA_URL      = "https://ollama.com/v1/chat/completions"
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "gpt-oss:120b")
 
 # E-mail via Gmail (smtplib)
 GMAIL_USER          = os.getenv("GMAIL_USER")           # seuemail@gmail.com
