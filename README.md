@@ -100,7 +100,7 @@ No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análi
 |---|---|---|
 | **Core** | API central, auth, pipeline, multi-tenancy | 8000 |
 | **Data Control** | Scanner SAST (Semgrep) + DAST (ZAP) + Secrets (Gitleaks) + SCA (Trivy) | — |
-| **Analyser** | Correlação entre ferramentas + enriquecimento e priorização com IA (Groq) | — |
+| **Analyser** | Correlação entre ferramentas + enriquecimento e priorização com IA (Ollama Cloud) | — |
 | **Ghost** | Geração de correções automáticas | 8002 |
 | **Spirit** | Assistente de compliance via chatbot | 8001 |
 | **Dashboard** | Interface web React | 5173 |
