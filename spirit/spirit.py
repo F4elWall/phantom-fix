@@ -180,7 +180,7 @@ async def perguntar(body: PerguntaRequest):
                         {"role": "system", "content": system},
                         {"role": "user",   "content": f"{contexto_relatorio}\n\n=== Pergunta ===\n{body.pergunta}"},
                     ],
-                    "max_tokens": 1024,
+                    "max_tokens": 10000,
                     "temperature": 0.4,
                 },
             )
