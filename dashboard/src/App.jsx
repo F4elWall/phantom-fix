@@ -273,6 +273,7 @@ export default function App() {
         onVerHistorico={() => setTela("historico")}
         onAbrirPipeline={abrirPipeline}
         onSair={sair}
+        onVerRelatorioExecutivo={relatorioExecutivo ? () => setTela("relatorio_executivo") : null}
       />
       {spiritAberto && <SpiritChat relatorio={relatorio} />}
     </div>
