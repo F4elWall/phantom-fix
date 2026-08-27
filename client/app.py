@@ -1,6 +1,7 @@
 """
 PhantomFix — Cliente
 Versão: 2.1
+Autor e Revisor: Bernardo Coroa
 
 Duas telas:
   1. TelaVinculacao — cola o token, valida, puxa o nome da conta
