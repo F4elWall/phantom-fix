@@ -37,6 +37,7 @@ from weasyprint import HTML
 
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
+from zip_validator import validar_e_extrair_zip, ZipValidationError
 
 app = FastAPI(title="PhantomFix Core", version="0.8.0")
 
@@ -594,7 +595,18 @@ async def receber_zip(
     pasta_job.mkdir(parents=True, exist_ok=True)
 
     zip_path = pasta_job / "repositorio.zip"
-    conteudo = await arquivo.read()
+
+    # Lê em chunks e rejeita antes de salvar em disco se ultrapassar o limite
+    from zip_validator import MAX_ZIP_SIZE
+    conteudo = bytearray()
+    async for chunk in arquivo:
+        conteudo.extend(chunk)
+        if len(conteudo) > MAX_ZIP_SIZE:
+            shutil.rmtree(pasta_job, ignore_errors=True)
+            raise HTTPException(
+                status_code=413,
+                detail=f"Arquivo excede o limite de {MAX_ZIP_SIZE // 1024 // 1024} MB.",
+            )
     zip_path.write_bytes(conteudo)
 
     print(f"[{protocolo}] user={user_id} repo={repositorio} ({len(conteudo)/1024:.1f} KB)")
@@ -649,9 +661,13 @@ def pipeline_completo(
         pasta_extraida.mkdir(exist_ok=True)
 
         try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(pasta_extraida)
-            print(f"[{protocolo}] Extraído em {pasta_extraida}")
+            arquivos_extraidos = validar_e_extrair_zip(zip_path, pasta_extraida)
+            print(f"[{protocolo}] Extraído em {pasta_extraida} ({len(arquivos_extraidos)} arquivos)")
+        except ZipValidationError as e:
+            _status_jobs[protocolo]["status"] = "erro"
+            _status_jobs[protocolo]["detalhe"] = f"Zip rejeitado: {e}"
+            print(f"[{protocolo}] ✗ Zip rejeitado: {e}")
+            return
         except zipfile.BadZipFile:
             _status_jobs[protocolo]["status"] = "erro"
             _status_jobs[protocolo]["detalhe"] = "Arquivo .zip inválido ou corrompido"
