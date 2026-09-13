@@ -612,12 +612,60 @@ async def receber_zip(
     print(f"[{protocolo}] user={user_id} repo={repositorio} ({len(conteudo)/1024:.1f} KB)")
 
     background.add_task(
-        pipeline_completo,
+        _preparar_e_executar_zip,
         user_id, protocolo, pasta_job, zip_path, repositorio,
         contexto_projeto, usuario["email"], usuario["nome"],
     )
 
     return {"status": "recebido", "protocolo": protocolo, "repositorio": repositorio}
+
+
+# ── Endpoint GitHub ────────────────────────────────────────────────────────────
+class ScanGithubBody(BaseModel):
+    token:            str            # Personal Access Token do GitHub
+    repositorio:      str            # https://github.com/org/repo
+    client_token:     str            # token do usuário no PhantomFix
+    contexto_projeto: str | None = None
+
+
+@app.post("/scan/github")
+def receber_github(background: BackgroundTasks, body: ScanGithubBody):
+    usuario = db.buscar_usuario_por_token(body.client_token)
+    if not usuario:
+        raise HTTPException(status_code=403, detail="Token inválido")
+
+    # Validação básica da URL antes de enfileirar
+    if not body.repositorio.strip().startswith("https://github.com/"):
+        raise HTTPException(
+            status_code=400,
+            detail="URL inválida. Use o formato https://github.com/usuario/repositorio",
+        )
+
+    if not body.token.strip():
+        raise HTTPException(status_code=400, detail="Token GitHub não pode ser vazio")
+
+    user_id   = usuario["id"]
+    protocolo = str(uuid.uuid4())[:8]
+    _status_jobs[protocolo] = {
+        "status":      "recebido",
+        "repositorio": body.repositorio,
+        "user_id":     user_id,
+        "origem":      "github",
+    }
+
+    pasta_job = JOBS_DIR / str(user_id) / protocolo
+    pasta_job.mkdir(parents=True, exist_ok=True)
+
+    print(f"[{protocolo}] user={user_id} github={body.repositorio}")
+
+    background.add_task(
+        _preparar_e_executar_github,
+        user_id, protocolo, pasta_job,
+        body.token.strip(), body.repositorio.strip(),
+        body.contexto_projeto, usuario["email"], usuario["nome"],
+    )
+
+    return {"status": "recebido", "protocolo": protocolo, "repositorio": body.repositorio}
 
 
 @app.get("/scan/ativo")
@@ -641,7 +689,8 @@ def status_scan(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
-def pipeline_completo(
+# ── Wrappers de preparação (zip e github) ─────────────────────────────────────
+def _preparar_e_executar_zip(
     user_id:          int,
     protocolo:        str,
     pasta_job:        Path,
@@ -651,28 +700,132 @@ def pipeline_completo(
     email_usuario:    str,
     nome_usuario:     str,
 ):
+    """Extrai o zip com validação em camadas e entrega pasta_extraida ao pipeline."""
+    _status_jobs[protocolo]["status"] = "extraindo"
+    pasta_extraida = pasta_job / "repo"
+    pasta_extraida.mkdir(exist_ok=True)
+
+    try:
+        arquivos_extraidos = validar_e_extrair_zip(zip_path, pasta_extraida)
+        print(f"[{protocolo}] Extraído em {pasta_extraida} ({len(arquivos_extraidos)} arquivos)")
+    except ZipValidationError as e:
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = f"Zip rejeitado: {e}"
+        print(f"[{protocolo}] ✗ Zip rejeitado: {e}")
+        return
+    except zipfile.BadZipFile:
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = "Arquivo .zip inválido ou corrompido"
+        return
+
+    pipeline_completo(
+        user_id, protocolo, pasta_job, pasta_extraida,
+        repositorio, contexto_projeto, email_usuario, nome_usuario,
+    )
+
+
+def _preparar_e_executar_github(
+    user_id:          int,
+    protocolo:        str,
+    pasta_job:        Path,
+    github_token:     str,
+    github_url:       str,
+    contexto_projeto: str | None,
+    email_usuario:    str,
+    nome_usuario:     str,
+):
+    """Clona o repositório GitHub e entrega pasta_extraida ao pipeline."""
+    _status_jobs[protocolo]["status"] = "clonando"
+    pasta_extraida = pasta_job / "repo"
+
+    # Monta URL autenticada: https://<token>@github.com/org/repo.git
+    try:
+        from urllib.parse import urlparse, urlunparse
+        parsed = urlparse(github_url.strip())
+
+        # Aceita apenas github.com
+        host = parsed.hostname or ""
+        if "github.com" not in host:
+            raise ValueError(f"Host não permitido: {host!r}. Apenas github.com é suportado.")
+
+        # Garante scheme https
+        if parsed.scheme not in ("https", "http"):
+            raise ValueError("A URL do repositório deve usar HTTPS.")
+
+        # Injeta token como user info
+        url_autenticada = urlunparse(parsed._replace(
+            scheme="https",
+            netloc=f"{github_token}@{parsed.hostname}{':' + str(parsed.port) if parsed.port else ''}"
+        ))
+    except ValueError as e:
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = f"URL inválida: {e}"
+        print(f"[{protocolo}] ✗ URL GitHub inválida: {e}")
+        return
+
+    print(f"[{protocolo}] Clonando {github_url} ...")
+    try:
+        proc = subprocess.run(
+            [
+                "git", "clone",
+                "--depth", "1",          # histórico superficial — só o HEAD
+                "--single-branch",
+                url_autenticada,
+                str(pasta_extraida),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,                 # 5 min para clones grandes
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # evita prompt interativo
+        )
+    except subprocess.TimeoutExpired:
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = "Timeout ao clonar repositório (> 5 min)"
+        return
+    except FileNotFoundError:
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = "git não encontrado no servidor"
+        return
+
+    if proc.returncode != 0:
+        stderr = proc.stderr.strip()
+
+        # Mapeia erros comuns do git para mensagens legíveis
+        if "Repository not found" in stderr or "not found" in stderr.lower():
+            detalhe = "Repositório não encontrado. Verifique a URL."
+        elif "Authentication failed" in stderr or "could not read Username" in stderr:
+            detalhe = "Autenticação falhou. Verifique o token de acesso."
+        elif "not have permission" in stderr or "403" in stderr:
+            detalhe = "Sem permissão de acesso ao repositório."
+        else:
+            detalhe = f"Falha no clone: {stderr[-300:]}"
+
+        _status_jobs[protocolo]["status"] = "erro"
+        _status_jobs[protocolo]["detalhe"] = detalhe
+        print(f"[{protocolo}] ✗ git clone falhou: {stderr[-200:]}")
+        return
+
+    print(f"[{protocolo}] Clone concluído em {pasta_extraida}")
+    pipeline_completo(
+        user_id, protocolo, pasta_job, pasta_extraida,
+        github_url, contexto_projeto, email_usuario, nome_usuario,
+    )
+
+
+def pipeline_completo(
+    user_id:          int,
+    protocolo:        str,
+    pasta_job:        Path,
+    pasta_extraida:   Path,          # já populada por _preparar_via_zip ou _preparar_via_github
+    repositorio:      str,
+    contexto_projeto: str | None,
+    email_usuario:    str,
+    nome_usuario:     str,
+):
     pasta_resultado = pasta_resultados_usuario(user_id) / protocolo
     pasta_resultado.mkdir(parents=True, exist_ok=True)
 
     try:
-        # ── 1. Extrai o .zip ─────────────────────────────────────────────────
-        _status_jobs[protocolo]["status"] = "extraindo"
-        pasta_extraida = pasta_job / "repo"
-        pasta_extraida.mkdir(exist_ok=True)
-
-        try:
-            arquivos_extraidos = validar_e_extrair_zip(zip_path, pasta_extraida)
-            print(f"[{protocolo}] Extraído em {pasta_extraida} ({len(arquivos_extraidos)} arquivos)")
-        except ZipValidationError as e:
-            _status_jobs[protocolo]["status"] = "erro"
-            _status_jobs[protocolo]["detalhe"] = f"Zip rejeitado: {e}"
-            print(f"[{protocolo}] ✗ Zip rejeitado: {e}")
-            return
-        except zipfile.BadZipFile:
-            _status_jobs[protocolo]["status"] = "erro"
-            _status_jobs[protocolo]["detalhe"] = "Arquivo .zip inválido ou corrompido"
-            return
-
         # ── 2. Padroniza contexto do projeto ──────────────────────────────────
         contexto_padronizado = None
         if contexto_projeto and contexto_projeto.strip():
