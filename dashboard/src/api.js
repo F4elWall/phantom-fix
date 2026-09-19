@@ -181,6 +181,38 @@ export async function marcarRelatorioLido(protocolo) {
   return resp.json();
 }
 
+// ── Vault Obsidian ────────────────────────────────────────────────────────────
+
+export async function statusVault(protocolo) {
+  const resp = await fetch(
+    `${CORE_URL}/vault/${encodeURIComponent(protocolo)}/status`,
+    { headers: authHeaders() }
+  );
+  if (!resp.ok) return { vault_pronto: false };
+  return resp.json();
+}
+
+export function urlDownloadVault(protocolo) {
+  const token = localStorage.getItem("session_token");
+  // Retorna URL com token para download direto
+  return `${CORE_URL}/vault/${encodeURIComponent(protocolo)}/download?token=${token}`;
+}
+
+export async function baixarVault(protocolo) {
+  const resp = await fetch(
+    `${CORE_URL}/vault/${encodeURIComponent(protocolo)}/download`,
+    { headers: authHeaders() }
+  );
+  if (!resp.ok) throw new Error("Vault não disponível");
+  const blob = await resp.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `vault-${protocolo}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function perguntarSpirit(pergunta, relatorio = null) {
   const resp = await fetch(`${SPIRIT_URL}/perguntar`, {
     method: "POST",
