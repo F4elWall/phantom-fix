@@ -597,17 +597,15 @@ async def receber_zip(
 
     zip_path = pasta_job / "repositorio.zip"
 
-    # Lê em chunks e rejeita antes de salvar em disco se ultrapassar o limite
+    # Lê e rejeita antes de salvar em disco se ultrapassar o limite
     from zip_validator import MAX_ZIP_SIZE
-    conteudo = bytearray()
-    async for chunk in arquivo:
-        conteudo.extend(chunk)
-        if len(conteudo) > MAX_ZIP_SIZE:
-            shutil.rmtree(pasta_job, ignore_errors=True)
-            raise HTTPException(
-                status_code=413,
-                detail=f"Arquivo excede o limite de {MAX_ZIP_SIZE // 1024 // 1024} MB.",
-            )
+    conteudo = await arquivo.read()
+    if len(conteudo) > MAX_ZIP_SIZE:
+        shutil.rmtree(pasta_job, ignore_errors=True)
+        raise HTTPException(
+            status_code=413,
+            detail=f"Arquivo excede o limite de {MAX_ZIP_SIZE // 1024 // 1024} MB.",
+        )
     zip_path.write_bytes(conteudo)
 
     print(f"[{protocolo}] user={user_id} repo={repositorio} ({len(conteudo)/1024:.1f} KB)")
