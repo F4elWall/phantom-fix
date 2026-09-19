@@ -1,6 +1,7 @@
 import { useState } from "react";
 import VulnCard from "./VulnCard";
 import Topbar from "./Topbar";
+import VaultDownload from "./VaultDownload";
 
 const QUANTIDADE_PRIORITARIA = 4;
 const VULNS_POR_PAGINA = 6;
@@ -158,6 +159,13 @@ export default function ResultsView({ relatorio, scanState, spiritAberto, onTogg
 
       {/* ── Main ── */}
       <main className="main-content">
+
+        {/* ── Vault Obsidian download ── */}
+        {relatorio.protocolo && (
+          <div className="vault-download-wrapper">
+            <VaultDownload protocolo={relatorio.protocolo} />
+          </div>
+        )}
 
         {/* ── 2 cards de métricas ── */}
         <div className="metricas-grid">
