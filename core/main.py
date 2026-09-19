@@ -38,6 +38,7 @@ from weasyprint import HTML
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
 from zip_validator import validar_e_extrair_zip, ZipValidationError
+from vault.vault_obsidian import gerar_vault
 
 app = FastAPI(title="PhantomFix Core", version="0.8.0")
 
@@ -952,6 +953,43 @@ def pipeline_completo(
         salvar_resultado(user_id, protocolo, resultado)
         _status_jobs[protocolo]["status"] = "concluido"
 
+        # ── 8.5. Vault Obsidian ───────────────────────────────────────────────
+        try:
+            _status_jobs[protocolo]["status"] = "gerando_vault"
+            print(f"[{protocolo}] Gerando Vault Obsidian...")
+
+            # Carrega scan anterior para calcular delta
+            resultado_anterior = None
+            scans_ant_ids: list[str] = []
+            historico_usuario = carregar_resultado(user_id)   # lista de resultados
+            if isinstance(historico_usuario, list):
+                # pega o mais recente que NÃO seja o atual
+                anteriores = [
+                    r for r in historico_usuario
+                    if r.get("protocolo") != protocolo and r.get("status") == "concluido"
+                ]
+                if anteriores:
+                    resultado_anterior = anteriores[-1]
+                    scans_ant_ids = [r["protocolo"] for r in anteriores]
+
+            pasta_resultado = pasta_resultados_usuario(user_id) / protocolo
+            zip_vault = gerar_vault(
+                user_id=user_id,
+                protocolo=protocolo,
+                resultado=resultado,
+                pasta_base=pasta_resultado,
+                resultado_ant=resultado_anterior,
+                scans_anteriores=scans_ant_ids,
+            )
+            resultado["vault_zip"] = str(zip_vault)
+            salvar_resultado(user_id, protocolo, resultado)
+            _status_jobs[protocolo]["vault_pronto"] = True
+            print(f"[{protocolo}] Vault Obsidian gerado → {zip_vault}")
+        except Exception as e_vault:
+            print(f"[{protocolo}] ⚠ Vault Obsidian falhou (não crítico): {e_vault}")
+
+        _status_jobs[protocolo]["status"] = "concluido"
+
         # ── 9. E-mail de notificação ──────────────────────────────────────────
         print(f"[{protocolo}] Enviando e-mail para {email_usuario}...")
         enviar_email_conclusao(
@@ -1099,6 +1137,41 @@ def baixar_relatorio_executivo_pdf(protocolo: str, usuario: dict = Depends(usuar
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="relatorio-executivo-{protocolo}.pdf"'},
     )
+
+
+@app.get("/vault/{protocolo}/download")
+def baixar_vault_obsidian(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
+    """Retorna o vault Obsidian (.zip) do scan especificado."""
+    resultado = carregar_resultado(usuario["id"], protocolo)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+    if resultado.get("user_id") != usuario["id"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    zip_path = resultado.get("vault_zip")
+    if not zip_path or not Path(zip_path).exists():
+        raise HTTPException(status_code=404, detail="Vault ainda não gerado para este scan")
+
+    zip_bytes = Path(zip_path).read_bytes()
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="vault-{protocolo}.zip"'},
+    )
+
+
+@app.get("/vault/{protocolo}/status")
+def status_vault(protocolo: str, usuario: dict = Depends(usuario_autenticado)):
+    """Informa se o vault Obsidian já foi gerado para o scan."""
+    resultado = carregar_resultado(usuario["id"], protocolo)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+    if resultado.get("user_id") != usuario["id"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    zip_path = resultado.get("vault_zip", "")
+    pronto   = bool(zip_path and Path(zip_path).exists())
+    return {"protocolo": protocolo, "vault_pronto": pronto, "vault_zip": zip_path if pronto else None}
 
 
 @app.post("/relatorio-executivo/{protocolo}/lido")
