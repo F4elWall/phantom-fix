@@ -675,22 +675,27 @@ if url_alvo:
                     "info":     "INFO",
                 }
 
-                vulnerabilidades.append({
-                    "id":               "",
-                    "origem":           "nuclei",
-                    "arquivo":          item.get("matched-at", url_alvo),
-                    "linha":            0,
-                    "tipo":             item.get("template-id", "nuclei-finding").lower(),
-                    "severidade":       mapa_sev_nuclei.get(sev_orig, "WARNING"),
-                    "descricao":        info_tmpl.get("name", "") + ": " + info_tmpl.get("description", ""),
-                    "trecho_do_codigo": item.get("extracted-results", [""])[0] if item.get("extracted-results") else "",
-                    "score":            0,
-                    "justificativa":    "",
-                    "cve_id":           info_tmpl.get("classification", {}).get("cve-id", [""])[0] if info_tmpl.get("classification") else "",
-                })
-                contador_nuclei += 1
+classification = info_tmpl.get("classification")
+if isinstance(classification, dict):
+    cve_list = classification.get("cve-id", [])
+    cve_id = cve_list[0] if isinstance(cve_list, list) and cve_list else ""
+else:
+    cve_id = ""
 
-        print(f"  → {contador_nuclei} achados")
+vulnerabilidades.append({
+    "id":               "",
+    "origem":           "nuclei",
+    "arquivo":          item.get("matched-at", url_alvo),
+    "linha":            0,
+    "tipo":             item.get("template-id", "nuclei-finding").lower(),
+    "severidade":       mapa_sev_nuclei.get(sev_orig, "WARNING"),
+    "descricao":        info_tmpl.get("name", "") + ": " + info_tmpl.get("description", ""),
+    "trecho_do_codigo": item.get("extracted-results", [""])[0] if item.get("extracted-results") else "",
+    "score":            0,
+    "justificativa":    "",
+    "cve_id":           cve_id,
+})
+contador_nuclei += 1
 
     except subprocess.TimeoutExpired:
         print("  ⚠ Nuclei excedeu 10 min — coletando achados disponíveis")
