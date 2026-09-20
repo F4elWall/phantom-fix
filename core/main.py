@@ -975,7 +975,7 @@ def pipeline_completo(
                 user_id=user_id,
                 protocolo=protocolo,
                 resultado=resultado,
-                pasta_base=pasta_resultado,
+                pasta_base=pasta_resultado,  # vault unificado fica em pasta_base/../vaults/<slug_repo>/
                 resultado_ant=resultado_anterior,
                 scans_anteriores=scans_ant_ids,
             )
@@ -1150,11 +1150,13 @@ def baixar_vault_obsidian(protocolo: str, usuario: dict = Depends(usuario_autent
     if not zip_path or not Path(zip_path).exists():
         raise HTTPException(status_code=404, detail="Vault ainda não gerado para este scan")
 
-    zip_bytes = Path(zip_path).read_bytes()
+    # Nome do zip reflete o repositório (vault unificado), não o protocolo
+    zip_file = Path(zip_path)
+    zip_bytes = zip_file.read_bytes()
     return Response(
         content=zip_bytes,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="vault-{protocolo}.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="{zip_file.name}"'},
     )
 
 
