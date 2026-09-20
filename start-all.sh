@@ -93,7 +93,7 @@ cd "$ROOT/spirit"
 source venv/bin/activate
 export CORE_URL="http://localhost:8000"
 export OLLAMA_SPIRIT_KEY="$OLLAMA_SPIRIT_KEY"
-export SPIRIT_MODEL="gpt-oss:20b"
+export SPIRIT_MODEL="nemotron-3-super"
 uvicorn spirit:app --host 0.0.0.0 --port 8001 \
   > "$LOG_DIR/spirit.log" 2>&1 &
 SPIRIT_PID=$!
@@ -110,7 +110,7 @@ info "Subindo Ghost..."
 cd "$ROOT/ghost"
 source venv/bin/activate
 export OLLAMA_GHOST_KEY="$OLLAMA_GHOST_KEY"
-export GHOST_MODEL="gpt-oss:20b"
+export GHOST_MODEL="nemotron-3-super"
 uvicorn main:app --host 0.0.0.0 --port 8002 \
   > "$LOG_DIR/ghost.log" 2>&1 &
 GHOST_PID=$!
@@ -133,7 +133,7 @@ export ZAP_API_URL="http://localhost:8080"
 export ZAP_TIMEOUT="3600"
 export GHOST_URL="http://localhost:8002/corrigir"
 export OLLAMA_ANALYSER_KEY="$OLLAMA_ANALYSER_KEY"
-export OLLAMA_MODEL="gpt-oss:20b"
+export OLLAMA_MODEL="nemotron-3-super"
 export JOBS_DIR="$ROOT/core/jobs"
 export RESULTADOS_DIR="$ROOT/resultados"
 mkdir -p "$JOBS_DIR"
