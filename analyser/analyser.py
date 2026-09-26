@@ -9,12 +9,14 @@ ferramentas e enriquece cada vulnerabilidade com score, justificativa,
 categoria e recomendação via LLM.
 
 Fluxo:
-  1. Correlação 1 — Trivy × imports no código
+  1. Normalização — severidade canônica, extração de CWE, fingerprint, deduplicação
+  2. Correlação 1 — Trivy × imports no código
        - Import direto encontrado  → score_base 8.5 | tag "confirmado_em_uso"
        - Só no lockfile (dep transitiva) → score_base 6.0 | tag "confirmado_via_lockfile"
-  2. Correlação 2 — Semgrep × ZAP mesmo tipo + localização (score_base 8.0)
-  3. LLM analisa cada vulnerabilidade com contexto de correlação + contexto do projeto
-  4. Ordena por score decrescente e salva
+  3. Correlação 2 — Semgrep × ZAP mesmo tipo + localização (score_base 8.0)
+  4. Enriquecimento externo — NVD (CVSS v3), EPSS (FIRST), CISA KEV
+  5. LLM analisa cada vulnerabilidade com contexto enriquecido + contexto do projeto
+  6. Ordena por score decrescente e salva
 
 Uso:
     python analyser.py <findings.json> <saida.json>
@@ -34,6 +36,9 @@ from pathlib import Path
 from datetime import datetime
 
 import requests
+
+from normalizer import normalizar
+from enricher  import enriquecer
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -298,7 +303,38 @@ Orientações por tag:
 - "confirmado_em_uso": import direto no código → score alto (≥ 8.0)
 - "confirmado_via_lockfile": dep transitiva sem import direto → score moderado (4.0–6.9)
 - "confirmado_por_multiplas_ferramentas": SAST + DAST convergem → score alto (≥ 8.0)
+- "kev_exploracao_ativa": exploração confirmada in-the-wild pela CISA → score mínimo 9.0
 """
+
+        # ── Bloco de enriquecimento externo ───────────────────────────────────
+        bloco_enriquecimento = ""
+        cvss   = vuln.get("cvss_v3")
+        epss   = vuln.get("epss")
+        epss_p = vuln.get("epss_percentil")
+        kev    = vuln.get("kev")
+
+        linhas_enr = []
+        if cvss is not None:
+            linhas_enr.append(f"- CVSS v3 base score: {cvss} (vetor: {vuln.get('cvss_vetor', 'N/A')})")
+        if epss is not None:
+            linhas_enr.append(
+                f"- EPSS: {epss:.4f} ({epss_p*100:.1f}º percentil) — "
+                f"probabilidade de exploração nos próximos 30 dias"
+            )
+        if kev is True:
+            linhas_enr.append(
+                f"- ⚠ CISA KEV: exploração ativa confirmada (adicionado em {vuln.get('kev_data_adicao', 'N/A')})"
+            )
+        elif kev is False:
+            linhas_enr.append("- CISA KEV: não listado (sem exploração ativa confirmada)")
+
+        if linhas_enr:
+            bloco_enriquecimento = (
+                "\nDADOS DE EXPLOITABILIDADE (fontes externas):\n"
+                + "\n".join(linhas_enr)
+                + "\n\nUse estes dados objetivos para calibrar o score. "
+                "CVSS alto + EPSS alto + KEV = score mínimo 9.0.\n"
+            )
 
         return f"""Analise a vulnerabilidade abaixo e retorne **apenas** um objeto JSON com as chaves "score", "justificativa", "categoria" e "recomendacao". O JSON deve estar em uma linha, sem quebras de linha extras.
 
@@ -308,7 +344,7 @@ Escala de score (0-10):
 - 4.0-6.9:  Médio — exploração condicionada, impacto moderado (ex: headers ausentes, dep transitiva)
 - 1.0-3.9:  Baixo — difícil exploração, impacto limitado
 - 0.0-0.9:  Informativo — sem impacto direto
-{bloco_contexto}{bloco_correlacao}
+{bloco_contexto}{bloco_correlacao}{bloco_enriquecimento}
 Vulnerabilidade:
 {json.dumps(vuln, indent=2, ensure_ascii=False)}
 
@@ -329,14 +365,24 @@ Responda exatamente assim (exemplo):
         data  = json.loads(findings_path.read_text(encoding="utf-8"))
         vulns = data.get("vulnerabilidades", [])
 
-        # ── Correlação mecânica ───────────────────────────────────────────────
+        # ── 1. Normalização + deduplicação ───────────────────────────────────
+        print(f"\n[Fase 1] Normalizando {len(vulns)} findings brutos...")
+        vulns, stats_norm = normalizar(vulns)
+        print(
+            f"  Entrada: {stats_norm['total_entrada']} · "
+            f"Suprimidos (ruído): {stats_norm['suprimidos']} · "
+            f"Duplicatas fundidas: {stats_norm['duplicatas']} · "
+            f"Únicos: {stats_norm['unicos']}"
+        )
+
+        # ── 2. Correlação mecânica ────────────────────────────────────────────
         pasta_repo = Path(os.getenv("PASTA_REPO", ""))
         if not pasta_repo.exists():
             candidata  = findings_path.parent.parent.parent / "jobs"
             pastas_job = list(candidata.rglob("repo")) if candidata.exists() else []
             pasta_repo = pastas_job[0] if pastas_job else Path("")
 
-        print(f"\n[Correlação 1] Trivy × imports no código (repo: {pasta_repo})...")
+        print(f"\n[Fase 2] Correlação Trivy × imports no código (repo: {pasta_repo})...")
         c1 = correlacionar_trivy_imports(vulns, pasta_repo)
         em_uso   = sum(1 for v in vulns if "confirmado_em_uso"      in v.get("tags_correlacao", []))
         via_lock = sum(1 for v in vulns if "confirmado_via_lockfile" in v.get("tags_correlacao", []))
@@ -345,12 +391,23 @@ Responda exatamente assim (exemplo):
             print(f"    → {em_uso} com import direto (score_base 8.5)")
             print(f"    → {via_lock} só no lockfile / dep transitiva (score_base 6.0)")
 
-        print("\n[Correlação 2] Semgrep × ZAP (mesmo tipo + localização)...")
+        print("\n[Fase 2] Correlação Semgrep × ZAP (mesmo tipo + localização)...")
         c2 = correlacionar_semgrep_zap(vulns)
         print(f"  {c2} par(es) Semgrep×ZAP correlacionado(s)")
 
         total_correlacionados = sum(1 for v in vulns if v.get("tags_correlacao"))
         print(f"\n  Total com correlação: {total_correlacionados} vulnerabilidades")
+
+        # ── 3. Enriquecimento externo ─────────────────────────────────────────
+        print(f"\n[Fase 3] Enriquecendo com NVD / EPSS / CISA KEV...")
+        vulns, stats_enr = enriquecer(vulns)
+        kev_findings = sum(1 for v in vulns if v.get("kev") is True)
+        print(
+            f"  CVEs únicos: {stats_enr['total_cves']} · "
+            f"NVD: {stats_enr['nvd_ok']} · "
+            f"EPSS: {stats_enr['epss_ok']} · "
+            f"KEV: {kev_findings} findings com exploração ativa"
+        )
 
         # ── Análise LLM ───────────────────────────────────────────────────────
         limite = int(os.getenv("ANALYSER_LIMITE", "0"))
@@ -412,7 +469,20 @@ Responda exatamente assim (exemplo):
             "processado_em":         datetime.now().isoformat(),
             "total_correlacionados": total_correlacionados,
             "contexto_projeto":      self.contexto_proj,
-            "vulnerabilidades":      enriched_ordenado,
+            # ── Estatísticas da fase mecânica ──────────────────────────────
+            "normalizacao": {
+                "total_entrada":  stats_norm["total_entrada"],
+                "suprimidos":     stats_norm["suprimidos"],
+                "duplicatas":     stats_norm["duplicatas"],
+                "unicos":         stats_norm["unicos"],
+            },
+            "enriquecimento": {
+                "total_cves":  stats_enr["total_cves"],
+                "nvd_ok":      stats_enr["nvd_ok"],
+                "epss_ok":     stats_enr["epss_ok"],
+                "kev_count":   kev_findings,
+            },
+            "vulnerabilidades": enriched_ordenado,
         }
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
