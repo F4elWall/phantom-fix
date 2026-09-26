@@ -1185,6 +1185,16 @@ def marcar_relatorio_lido(protocolo: str, usuario: dict = Depends(usuario_autent
     salvar_relatorio_executivo(usuario["id"], protocolo, resultado)
     return {"ok": True}
 
+@app.get("/scan/pending")
+def scan_pendente(usuario: dict = Depends(usuario_autenticado)):
+    """
+    Consultado pelo Data-Control a cada 60s.
+    Retorna se há um scan agendado para este usuário.
+    Por ora sempre False — será alimentado pelo Nexus futuramente.
+    """
+    pendente = _status_jobs.get(f"agendado_{usuario['id']}", False)
+    return {"pendente": bool(pendente), "user_id": usuario["id"]}
+
 
 @app.get("/resultados")
 def listar_resultados(usuario: dict = Depends(usuario_autenticado)):
