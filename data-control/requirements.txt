@@ -1,1 +1,15 @@
-requests
+# Comunicação com o Core
+requests>=2.31.0
+ 
+# Armazenamento seguro do token (Windows Credential Manager)
+keyring>=24.0.0
+ 
+# Bandeja do sistema
+pystray>=0.19.4
+Pillow>=10.0.0
+ 
+# Notificações nativas do Windows
+plyer>=2.1.0
+ 
+# Build do instalável
+pyinstaller>=6.0.0
