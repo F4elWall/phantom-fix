@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import logoImg from "../assets/logo.png";
 import { regenToken } from "../api";
+// --- [MODIFICAÇÃO]: Importado hook do tema ---
+import { useTheme } from "../App";
 
 function formatarData(iso) {
   if (!iso) return null;
@@ -79,6 +81,9 @@ export default function Topbar({
   const [novoToken, setNovoToken] = useState(null);
   const [regenando, setRegenando] = useState(false);
   const dropdownRef = useRef(null);
+
+  // --- [MODIFICAÇÃO]: Uso do hook de tema ---
+  const { tema, toggleTema } = useTheme();
 
   // Fecha dropdown ao clicar fora
   useEffect(() => {
@@ -180,6 +185,15 @@ export default function Topbar({
 
             {dropdownAberto && (
               <div className="topbar-dropdown">
+                {/* --- [MODIFICAÇÃO]: Botão para alternar tema --- */}
+                <button
+                  className="topbar-dropdown-item"
+                  onClick={() => { setDropdownAberto(false); toggleTema(); }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                  {tema === "dark" ? "Modo Claro" : "Modo Escuro"}
+                </button>
+                <div className="topbar-dropdown-sep" />
                 <button
                   className="topbar-dropdown-item"
                   onClick={handleRegenToken}
