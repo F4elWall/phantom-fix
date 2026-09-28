@@ -41,7 +41,7 @@ if exist dist rmdir /s /q dist
 if exist build rmdir /s /q build
 if exist PhantomFix.spec del PhantomFix.spec
 
-pyinstaller --onefile --windowed --icon=phantom.ico --name=PhantomFix main_data_control.py
+pyinstaller --onefile --windowed --icon=phantom.ico --add-data "phantom.ico;." --name=PhantomFix main_data_control.py
 if errorlevel 1 (
     echo [ERRO] PyInstaller falhou.
     pause & exit /b 1
