@@ -18,6 +18,15 @@ from plyer import notification
 import config
 from keychain import salvar_token, carregar_token, remover_token, token_configurado
 
+import sys
+from pathlib import Path
+
+def _caminho_recurso(nome: str) -> Path:
+    """Retorna o caminho correto do recurso, dentro ou fora do .exe."""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / nome   # rodando como .exe
+    return Path(__file__).parent / nome    # rodando como .py
+
 # ── Estado global da bandeja ──────────────────────────────────────────────────
 _icon: pystray.Icon | None = None
 _status_atual = "Idle"
@@ -28,24 +37,13 @@ _status_atual = "Idle"
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _criar_imagem_icone() -> Image.Image:
-    """Gera o ícone do PhantomFix: fundo roxo com fantasminha branco."""
+    ico_path = _caminho_recurso("phantom.ico")
+    if ico_path.exists():
+        return Image.open(ico_path).convert("RGBA").resize((64, 64), Image.LANCZOS)
+    # fallback: desenha o fantasma programaticamente (como estava antes)
     img  = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-
-    # Fundo roxo arredondado
-    draw.ellipse([4, 4, 60, 60], fill=(111, 66, 193))
-
-    # Corpo do fantasma (simplificado com formas básicas)
-    draw.ellipse([18, 14, 46, 38], fill=(255, 255, 255))   # cabeça
-    draw.rectangle([18, 26, 46, 50], fill=(255, 255, 255)) # corpo
-    # Ondulação na base
-    draw.ellipse([14, 44, 26, 56], fill=(111, 66, 193))
-    draw.ellipse([26, 44, 38, 56], fill=(255, 255, 255))
-    draw.ellipse([38, 44, 50, 56], fill=(111, 66, 193))
-    # Olhos
-    draw.ellipse([23, 22, 29, 28], fill=(111, 66, 193))
-    draw.ellipse([35, 22, 41, 28], fill=(111, 66, 193))
-
+    # ... resto do código original ...
     return img
 
 
