@@ -1,6 +1,6 @@
 //Autora e revisão: Giovana Esmelardi
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, createContext, useContext } from "react";
 import Landing from "./components/Landing";
 import Login from "./components/Login";
 import SignUp from "./components/SignUp";
@@ -13,6 +13,10 @@ import HistoricoView from "./components/HistoricoView";
 import RelatorioExecutivoView from "./components/RelatorioExecutivoView";
 import "./App.css";
 import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./api";
+
+// --- [MODIFICAÇÃO]: Criado ThemeContext para gerenciamento de tema ---
+const ThemeContext = createContext();
+export const useTheme = () => useContext(ThemeContext);
 
 /**
  * Telas possíveis:
@@ -32,6 +36,19 @@ function sessaoSalva() {
 }
 
 export default function App() {
+  // --- [MODIFICAÇÃO]: Estado para o tema ---
+  const [tema, setTema] = useState(localStorage.getItem("theme") || "dark");
+
+  const toggleTema = () => {
+    setTema((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  // --- [MODIFICAÇÃO]: Sincronizar tema com o atributo 'data-theme' no documento ---
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", tema);
+    localStorage.setItem("theme", tema);
+  }, [tema]);
+
   const dadosSalvos = sessaoSalva() ? {
     token: localStorage.getItem("user_token"),
     nome: localStorage.getItem("user_nome"),
@@ -162,122 +179,107 @@ export default function App() {
 
   // ── Roteamento ────────────────────────────────────────────────────────────
 
-  if (tela === "landing") {
-    return (
-      <Landing
-        onEntrar={() => setTela("auth")}
-        onCriarConta={() => setTela("signup")}
-      />
-    );
-  }
-
-  if (tela === "auth") {
-    return (
-      <Login
-        onLogin={onLogin}
-        onIrParaSignup={() => setTela("signup")}
-        onVoltar={() => setTela("landing")}
-      />
-    );
-  }
-
-  if (tela === "signup") {
-    return (
-      <SignUp
-        onCriouConta={onCriouConta}
-        onIrParaLogin={() => setTela("auth")}
-        onVoltar={() => setTela("landing")}
-      />
-    );
-  }
-
-  if (tela === "welcome") {
-    const usuarioWelcome = usuarioAuth || {
-      token: localStorage.getItem("user_token") || "",
-      nome:  localStorage.getItem("user_nome")  || "Usuário",
-      client_linked: false,
-    };
-    return (
-      <Welcome
-        usuario={usuarioWelcome}
-        onAcessarDashboard={onAcessarDashboard}
-        onSair={sair}
-      />
-    );
-  }
-
-  const dashboardClass = `dashboard ${spiritAberto ? "" : "spirit-recolhido"}`;
-  const scanStateComExecutivo = { ...scanState, relatorioExecutivoNaoLido };
-
-  if (tela === "relatorio_executivo" && relatorioExecutivo) {
-    return (
-      <RelatorioExecutivoView
-        relatorio={relatorioExecutivo}
-        onAcessarDashboard={onAcessarDashboardCompleto}
-      />
-    );
-  }
-
-  if (tela === "pipeline" && protocoloPipeline) {
-    return (
-      <div className={dashboardClass}>
-        <PipelineView
-          protocolo={protocoloPipeline}
-          scanState={scanStateComExecutivo}
-          spiritAberto={spiritAberto}
-          onToggleSpirit={() => setSpiritAberto((v) => !v)}
-          onVerHistorico={() => setTela("historico")}
-          onConcluido={onConcluidoPipeline}
-          onSair={sair}
-          onAbrirPipeline={abrirPipeline}
-        />
-        {spiritAberto && <SpiritChat relatorio={relatorio} />}
-      </div>
-    );
-  }
-
-  if (tela === "historico") {
-    return (
-      <div className={dashboardClass}>
-        <HistoricoView
-          scanState={scanStateComExecutivo}
-          spiritAberto={spiritAberto}
-          onToggleSpirit={() => setSpiritAberto((v) => !v)}
-          onAbrirPipeline={abrirPipeline}
-          onSelecionar={(rel) => { setRelatorio(rel); setTela("results"); }}
-          onVoltar={() => setTela(relatorio ? "results" : "home")}
-          onSair={sair}
-        />
-        {spiritAberto && <SpiritChat relatorio={relatorio} />}
-      </div>
-    );
-  }
-
-  if (!relatorio || tela === "home") {
-    return (
-      <div className="app-shell">
-        <Home
-          onRelatorioCarregado={onRelatorioCarregado}
-          onAbrirPipeline={abrirPipeline}
-          onSair={sair}
-        />
-      </div>
-    );
-  }
-
+  // --- [MODIFICAÇÃO]: Envolver tudo no ThemeContext.Provider ---
   return (
-    <div className={dashboardClass}>
-      <ResultsView
-        relatorio={relatorio}
-        scanState={scanStateComExecutivo}
-        spiritAberto={spiritAberto}
-        onToggleSpirit={() => setSpiritAberto((v) => !v)}
-        onVerHistorico={() => setTela("historico")}
-        onAbrirPipeline={abrirPipeline}
-        onSair={sair}
-        onVerRelatorioExecutivo={relatorioExecutivo ? () => setTela("relatorio_executivo") : null}
-      />
-      {spiritAberto && <SpiritChat relatorio={relatorio} />}
-    </div>
+    <ThemeContext.Provider value={{ tema, toggleTema }}>
+      {tela === "landing" && (
+        <Landing
+          onEntrar={() => setTela("auth")}
+          onCriarConta={() => setTela("signup")}
+        />
+      )}
+
+      {tela === "auth" && (
+        <Login
+          onLogin={onLogin}
+          onIrParaSignup={() => setTela("signup")}
+          onVoltar={() => setTela("landing")}
+        />
+      )}
+
+      {tela === "signup" && (
+        <SignUp
+          onCriouConta={onCriouConta}
+          onIrParaLogin={() => setTela("auth")}
+          onVoltar={() => setTela("landing")}
+        />
+      )}
+
+      {tela === "welcome" && (
+        <Welcome
+          usuario={usuarioAuth || {
+            token: localStorage.getItem("user_token") || "",
+            nome:  localStorage.getItem("user_nome")  || "Usuário",
+            client_linked: false,
+          }}
+          onAcessarDashboard={onAcessarDashboard}
+          onSair={sair}
+        />
+      )}
+
+      {tela === "relatorio_executivo" && relatorioExecutivo && (
+        <RelatorioExecutivoView
+          relatorio={relatorioExecutivo}
+          onAcessarDashboard={onAcessarDashboardCompleto}
+        />
+      )}
+
+      {tela === "pipeline" && protocoloPipeline && (
+        <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+          <PipelineView
+            protocolo={protocoloPipeline}
+            scanState={{ ...scanState, relatorioExecutivoNaoLido }}
+            spiritAberto={spiritAberto}
+            onToggleSpirit={() => setSpiritAberto((v) => !v)}
+            onVerHistorico={() => setTela("historico")}
+            onConcluido={onConcluidoPipeline}
+            onSair={sair}
+            onAbrirPipeline={abrirPipeline}
+          />
+          {spiritAberto && <SpiritChat relatorio={relatorio} />}
+        </div>
+      )}
+
+      {tela === "historico" && (
+        <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+          <HistoricoView
+            scanState={{ ...scanState, relatorioExecutivoNaoLido }}
+            spiritAberto={spiritAberto}
+            onToggleSpirit={() => setSpiritAberto((v) => !v)}
+            onAbrirPipeline={abrirPipeline}
+            onSelecionar={(rel) => { setRelatorio(rel); setTela("results"); }}
+            onVoltar={() => setTela(relatorio ? "results" : "home")}
+            onSair={sair}
+          />
+          {spiritAberto && <SpiritChat relatorio={relatorio} />}
+        </div>
+      )}
+
+      {(!relatorio || tela === "home") && tela !== "landing" && tela !== "auth" && tela !== "signup" && tela !== "welcome" && tela !== "relatorio_executivo" && tela !== "pipeline" && tela !== "historico" && (
+        <div className="app-shell">
+          <Home
+            onRelatorioCarregado={onRelatorioCarregado}
+            onAbrirPipeline={abrirPipeline}
+            onSair={sair}
+          />
+        </div>
+      )}
+
+      {tela === "results" && (
+        <div className={`dashboard ${spiritAberto ? "" : "spirit-recolhido"}`}>
+          <ResultsView
+            relatorio={relatorio}
+            scanState={{ ...scanState, relatorioExecutivoNaoLido }}
+            spiritAberto={spiritAberto}
+            onToggleSpirit={() => setSpiritAberto((v) => !v)}
+            onVerHistorico={() => setTela("historico")}
+            onAbrirPipeline={abrirPipeline}
+            onSair={sair}
+            onVerRelatorioExecutivo={relatorioExecutivo ? () => setTela("relatorio_executivo") : null}
+          />
+          {spiritAberto && <SpiritChat relatorio={relatorio} />}
+        </div>
+      )}
+    </ThemeContext.Provider>
   );
 }
