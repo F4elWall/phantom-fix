@@ -1,16 +1,18 @@
 """
 Autor e revisor: Rafael Pedro
 PhantomFix — Database
-SQLite simples para gerenciar usuários, tokens e sessões.
+SQLite para gerenciar usuários, tokens, sessões e projetos.
 O arquivo phantomfix.db é criado automaticamente na primeira execução.
 """
 
 import sqlite3
 import secrets
-import hashlib
 import os
+import uuid
 from pathlib import Path
 from datetime import datetime
+
+import bcrypt
 
 DB_PATH = Path(os.getenv("PHANTOMFIX_DB", Path(__file__).parent / "phantomfix.db"))
 
@@ -42,13 +44,36 @@ def inicializar_banco():
                 criado_em     TEXT    NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             );
+
+            CREATE TABLE IF NOT EXISTS projetos (
+                id          TEXT PRIMARY KEY,
+                user_id     INTEGER NOT NULL,
+                nome        TEXT    NOT NULL,
+                contexto    TEXT,
+                github_url  TEXT,
+                criado_em   TEXT    NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES usuarios(id)
+            );
         """)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers de senha (bcrypt) ─────────────────────────────────────────────────
 
 def _hash_senha(senha: str) -> str:
-    return hashlib.sha256(senha.encode()).hexdigest()
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+
+
+def _verificar_hash(senha: str, senha_hash: str) -> bool:
+    """Aceita bcrypt novo e SHA-256 legado (migração transparente)."""
+    try:
+        if senha_hash.startswith("$2"):  # bcrypt
+            return bcrypt.checkpw(senha.encode(), senha_hash.encode())
+        # legado SHA-256 — compara e sinaliza para rehash no login
+        import hashlib
+        return senha_hash == hashlib.sha256(senha.encode()).hexdigest()
+    except Exception:
+        return False
+
 
 def _gerar_token() -> str:
     return secrets.token_hex(16)
@@ -68,7 +93,7 @@ def criar_usuario(nome: str, email: str, senha: str) -> dict | None:
             )
         return buscar_usuario_por_email(email)
     except sqlite3.IntegrityError:
-        return None  # e-mail duplicado
+        return None
 
 
 def buscar_usuario_por_email(email: str) -> dict | None:
@@ -90,12 +115,22 @@ def buscar_usuario_por_token(token: str) -> dict | None:
 
 
 def verificar_senha(email: str, senha: str) -> dict | None:
-    """Retorna o usuário se email+senha corretos, senão None."""
+    """Retorna o usuário se email+senha corretos, senão None.
+    Faz upgrade transparente de hash SHA-256 → bcrypt no login."""
     usuario = buscar_usuario_por_email(email)
     if not usuario:
         return None
-    if usuario["senha_hash"] != _hash_senha(senha):
+    if not _verificar_hash(senha, usuario["senha_hash"]):
         return None
+    # Upgrade de hash legado
+    if not usuario["senha_hash"].startswith("$2"):
+        novo_hash = _hash_senha(senha)
+        with _conexao() as conn:
+            conn.execute(
+                "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+                (novo_hash, usuario["id"]),
+            )
+        usuario["senha_hash"] = novo_hash
     return usuario
 
 
@@ -153,3 +188,81 @@ def buscar_sessao(session_token: str) -> dict | None:
 def deletar_sessao(session_token: str):
     with _conexao() as conn:
         conn.execute("DELETE FROM sessoes WHERE session_token = ?", (session_token,))
+
+
+# ── Projetos ──────────────────────────────────────────────────────────────────
+
+def criar_projeto(
+    user_id: int,
+    nome: str,
+    contexto: dict | str | None = None,
+    github_url: str | None = None,
+) -> dict:
+    projeto_id = str(uuid.uuid4())
+    agora = datetime.now().isoformat()
+    import json
+    contexto_str = None
+    if contexto is not None:
+        contexto_str = contexto if isinstance(contexto, str) else json.dumps(contexto, ensure_ascii=False)
+    with _conexao() as conn:
+        conn.execute(
+            """
+            INSERT INTO projetos (id, user_id, nome, contexto, github_url, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (projeto_id, user_id, nome, contexto_str, github_url, agora),
+        )
+    return buscar_projeto(projeto_id)
+
+
+def listar_projetos(user_id: int) -> list[dict]:
+    with _conexao() as conn:
+        rows = conn.execute(
+            "SELECT * FROM projetos WHERE user_id = ? ORDER BY criado_em DESC",
+            (user_id,),
+        ).fetchall()
+    return [_projeto_dict(r) for r in rows]
+
+
+def buscar_projeto(projeto_id: str) -> dict | None:
+    with _conexao() as conn:
+        row = conn.execute(
+            "SELECT * FROM projetos WHERE id = ?", (projeto_id,)
+        ).fetchone()
+    return _projeto_dict(row) if row else None
+
+
+def atualizar_projeto(
+    projeto_id: str,
+    user_id: int,
+    nome: str | None = None,
+    contexto: dict | str | None = None,
+    github_url: str | None = None,
+) -> dict | None:
+    projeto = buscar_projeto(projeto_id)
+    if not projeto or projeto["user_id"] != user_id:
+        return None
+    import json
+    novo_nome = nome if nome is not None else projeto["nome"]
+    novo_ctx = projeto.get("contexto")
+    if contexto is not None:
+        novo_ctx = contexto if isinstance(contexto, str) else json.dumps(contexto, ensure_ascii=False)
+    novo_gh = github_url if github_url is not None else projeto.get("github_url")
+    with _conexao() as conn:
+        conn.execute(
+            "UPDATE projetos SET nome = ?, contexto = ?, github_url = ? WHERE id = ?",
+            (novo_nome, novo_ctx, novo_gh, projeto_id),
+        )
+    return buscar_projeto(projeto_id)
+
+
+def _projeto_dict(row) -> dict:
+    import json
+    d = dict(row)
+    ctx = d.get("contexto")
+    if ctx and isinstance(ctx, str):
+        try:
+            d["contexto"] = json.loads(ctx)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return d
