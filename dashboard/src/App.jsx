@@ -124,10 +124,18 @@ export default function App() {
     setTela("home");
   }
 
-  function onRelatorioCarregado(dados) {
-    setRelatorio(dados);
-    setTela("results");
-  }
+async function onRelatorioCarregado(dados) {
+  setRelatorio(dados);
+
+  try {
+    const exec = await buscarRelatorioExecutivo(dados?.protocolo);
+    if (exec) {
+      setRelatorioExecutivo(exec);
+    }
+  } catch { /* Spirit pode não ter gerado */ }
+
+  setTela("results");
+}
 
   const abrirPipeline = useCallback((protocolo) => {
     if (!protocolo) return;
