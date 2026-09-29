@@ -18,7 +18,7 @@ from bandeja import iniciar_bandeja, atualizar_status, notificar
 import requests
 
 # ── Configuração ──────────────────────────────────────────────────────────────
-CORE_URL_PADRAO    = "https://sua-url-azure.cloudapp.azure.com"   # trocar pelo domínio final
+CORE_URL_PADRAO    = "https://phantom-fix.southafricanorth.cloudapp.azure.com/api/"   # trocar pelo domínio final
 INTERVALO_POLLING  = 60   # segundos
 
 
