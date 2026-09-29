@@ -90,19 +90,76 @@ RESULTADOS_DIR.mkdir(parents=True, exist_ok=True)
 JOBS_DIR = Path(os.getenv("JOBS_DIR", "./jobs"))
 JOBS_DIR.mkdir(exist_ok=True)
 
-# ── Estado dos jobs em memória ────────────────────────────────────────────────
+# ── Estado dos jobs (memória + disco) ─────────────────────────────────────────
 _status_jobs: dict[str, dict] = {}
+_JOBS_FILE = JOBS_DIR / "status_jobs.json"
+
+
+def _carregar_jobs_do_disco():
+    """Restaura _status_jobs após restart do servidor."""
+    global _status_jobs
+    if not _JOBS_FILE.exists():
+        return
+    try:
+        dados = json.loads(_JOBS_FILE.read_text(encoding="utf-8"))
+        if isinstance(dados, dict):
+            _status_jobs = dados
+            print(f"✓ {_JOBS_FILE.name}: {len(_status_jobs)} jobs restaurados")
+    except Exception as e:
+        print(f"⚠ Falha ao carregar jobs do disco: {e}")
+
+
+def _salvar_jobs_no_disco():
+    """Persiste _status_jobs em JSON simples."""
+    try:
+        JOBS_DIR.mkdir(parents=True, exist_ok=True)
+        _JOBS_FILE.write_text(
+            json.dumps(_status_jobs, indent=2, ensure_ascii=False, default=str),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"⚠ Falha ao persistir jobs: {e}")
+
+
+def _set_job(protocolo: str, **campos):
+    """Atualiza um job e grava no disco."""
+    if protocolo not in _status_jobs:
+        _status_jobs[protocolo] = {}
+    _status_jobs[protocolo].update(campos)
+    _salvar_jobs_no_disco()
+
+
+_carregar_jobs_do_disco()
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
-def usuario_autenticado(authorization: str = Header(None)) -> dict:
+def get_usuario_por_qualquer_token(authorization: str | None = Header(None)) -> dict:
+    """
+    Tenta session_token no Bearer primeiro; cai no client_token (token permanente)
+    como fallback. Usado por /scan, /scan/pending e endpoints que o Data-Control chama.
+    """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Não autenticado")
-    session_token = authorization.split(" ", 1)[1]
-    usuario = db.buscar_sessao(session_token)
-    if not usuario:
-        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada")
-    return usuario
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token vazio")
+
+    # 1) session_token (dashboard logado)
+    usuario = db.buscar_sessao(token)
+    if usuario:
+        return usuario
+
+    # 2) client_token permanente (Data-Control / agente local)
+    usuario = db.buscar_usuario_por_token(token)
+    if usuario:
+        return usuario
+
+    raise HTTPException(status_code=401, detail="Sessão inválida ou token inválido")
+
+
+def usuario_autenticado(authorization: str = Header(None)) -> dict:
+    """Alias — session OU client_token. Mantém compatibilidade com Depends existentes."""
+    return get_usuario_por_qualquer_token(authorization)
 
 
 # ── Caminhos por usuário ──────────────────────────────────────────────────────
@@ -129,6 +186,32 @@ def carregar_resultado(user_id: int, protocolo: str | None = None) -> dict | Non
         if relatorio.exists():
             return json.loads(relatorio.read_text(encoding="utf-8"))
     return None
+
+
+def carregar_todos_resultados(user_id: int, projeto_id: str | None = None) -> list[dict]:
+    """Lista todos os relatórios do usuário (mais recente primeiro).
+    Se projeto_id for informado, filtra por esse campo no JSON."""
+    base = pasta_resultados_usuario(user_id)
+    if not base.exists():
+        return []
+    pastas = sorted(
+        (p for p in base.iterdir() if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    resultados = []
+    for pasta in pastas:
+        path = pasta / "relatorio.json"
+        if not path.exists():
+            continue
+        try:
+            dados = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if projeto_id and dados.get("projeto_id") != projeto_id:
+            continue
+        resultados.append(dados)
+    return resultados
 
 
 def carregar_relatorio_executivo(user_id: int, protocolo: str | None = None) -> dict | None:
@@ -584,34 +667,53 @@ def me_by_token(token: str):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ROTA PRINCIPAL — recebe o .zip do cliente
+# ROTA PRINCIPAL — recebe o .zip do cliente (Data-Control ou form legado)
 # ══════════════════════════════════════════════════════════════════════════════
 @app.post("/scan")
 async def receber_zip(
     background:       BackgroundTasks,
     arquivo:          UploadFile = File(...),
-    repositorio:      str        = Form(...),
-    token:            str        = Form(...),
-    contexto_projeto: str        = Form(None),
+    repositorio:      str | None = Form(None),
+    token:            str | None = Form(None),
+    contexto_projeto: str | None = Form(None),
+    projeto_id:       str | None = Form(None),
+    authorization:    str | None = Header(None),
 ):
-    usuario = db.buscar_usuario_por_token(token)
-    if not usuario:
+    """
+    Autenticação (qualquer uma):
+      - Authorization: Bearer <session_token|client_token>
+      - Form field `token` (client_token legado)
+    repositorio é opcional; se ausente usa o filename do zip.
+    """
+    usuario = None
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            usuario = get_usuario_por_qualquer_token(authorization)
+        except HTTPException:
+            pass
+    if usuario is None and token:
+        usuario = db.buscar_usuario_por_token(token)
+    if usuario is None:
         raise HTTPException(status_code=403, detail="Token inválido")
+
+    repo_nome = (repositorio or "").strip() or (arquivo.filename or "repositorio").replace(".zip", "")
 
     user_id   = usuario["id"]
     protocolo = str(uuid.uuid4())[:8]
-    _status_jobs[protocolo] = {
-        "status":      "recebido",
-        "repositorio": repositorio,
-        "user_id":     user_id,
-    }
+    _set_job(
+        protocolo,
+        status="recebido",
+        repositorio=repo_nome,
+        user_id=user_id,
+        projeto_id=projeto_id,
+        origem="zip",
+    )
 
     pasta_job = JOBS_DIR / str(user_id) / protocolo
     pasta_job.mkdir(parents=True, exist_ok=True)
 
     zip_path = pasta_job / "repositorio.zip"
 
-    # Lê e rejeita antes de salvar em disco se ultrapassar o limite
     from zip_validator import MAX_ZIP_SIZE
     conteudo = await arquivo.read()
     if len(conteudo) > MAX_ZIP_SIZE:
@@ -622,32 +724,47 @@ async def receber_zip(
         )
     zip_path.write_bytes(conteudo)
 
-    print(f"[{protocolo}] user={user_id} repo={repositorio} ({len(conteudo)/1024:.1f} KB)")
+    print(f"[{protocolo}] user={user_id} repo={repo_nome} ({len(conteudo)/1024:.1f} KB)")
 
     background.add_task(
         _preparar_e_executar_zip,
-        user_id, protocolo, pasta_job, zip_path, repositorio,
-        contexto_projeto, usuario["email"], usuario["nome"],
+        user_id, protocolo, pasta_job, zip_path, repo_nome,
+        contexto_projeto, usuario["email"], usuario["nome"], projeto_id,
     )
 
-    return {"status": "recebido", "protocolo": protocolo, "repositorio": repositorio}
+    return {"status": "recebido", "protocolo": protocolo, "repositorio": repo_nome}
 
 
 # ── Endpoint GitHub ────────────────────────────────────────────────────────────
 class ScanGithubBody(BaseModel):
-    token:            str            # Personal Access Token do GitHub
-    repositorio:      str            # https://github.com/org/repo
-    client_token:     str            # token do usuário no PhantomFix
+    token:            str                 # Personal Access Token do GitHub
+    repositorio:      str                 # https://github.com/org/repo
+    client_token:     str | None = None   # legado — preferir Authorization header
     contexto_projeto: str | None = None
+    projeto_id:       str | None = None
 
 
 @app.post("/scan/github")
-def receber_github(background: BackgroundTasks, body: ScanGithubBody):
-    usuario = db.buscar_usuario_por_token(body.client_token)
-    if not usuario:
+def receber_github(
+    background: BackgroundTasks,
+    body: ScanGithubBody,
+    authorization: str | None = Header(None),
+):
+    """
+    Autenticação: Authorization Bearer (session ou client_token)
+    ou body.client_token como fallback legado.
+    """
+    usuario = None
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            usuario = get_usuario_por_qualquer_token(authorization)
+        except HTTPException:
+            pass
+    if usuario is None and body.client_token:
+        usuario = db.buscar_usuario_por_token(body.client_token)
+    if usuario is None:
         raise HTTPException(status_code=403, detail="Token inválido")
 
-    # Validação básica da URL antes de enfileirar
     if not body.repositorio.strip().startswith("https://github.com/"):
         raise HTTPException(
             status_code=400,
@@ -659,12 +776,14 @@ def receber_github(background: BackgroundTasks, body: ScanGithubBody):
 
     user_id   = usuario["id"]
     protocolo = str(uuid.uuid4())[:8]
-    _status_jobs[protocolo] = {
-        "status":      "recebido",
-        "repositorio": body.repositorio,
-        "user_id":     user_id,
-        "origem":      "github",
-    }
+    _set_job(
+        protocolo,
+        status="recebido",
+        repositorio=body.repositorio,
+        user_id=user_id,
+        projeto_id=body.projeto_id,
+        origem="github",
+    )
 
     pasta_job = JOBS_DIR / str(user_id) / protocolo
     pasta_job.mkdir(parents=True, exist_ok=True)
@@ -675,7 +794,7 @@ def receber_github(background: BackgroundTasks, body: ScanGithubBody):
         _preparar_e_executar_github,
         user_id, protocolo, pasta_job,
         body.token.strip(), body.repositorio.strip(),
-        body.contexto_projeto, usuario["email"], usuario["nome"],
+        body.contexto_projeto, usuario["email"], usuario["nome"], body.projeto_id,
     )
 
     return {"status": "recebido", "protocolo": protocolo, "repositorio": body.repositorio}
@@ -712,9 +831,10 @@ def _preparar_e_executar_zip(
     contexto_projeto: str | None,
     email_usuario:    str,
     nome_usuario:     str,
+    projeto_id:       str | None = None,
 ):
     """Extrai o zip com validação em camadas e entrega pasta_extraida ao pipeline."""
-    _status_jobs[protocolo]["status"] = "extraindo"
+    _set_job(protocolo, status="extraindo")
     pasta_extraida = pasta_job / "repo"
     pasta_extraida.mkdir(exist_ok=True)
 
@@ -722,18 +842,16 @@ def _preparar_e_executar_zip(
         arquivos_extraidos = validar_e_extrair_zip(zip_path, pasta_extraida)
         print(f"[{protocolo}] Extraído em {pasta_extraida} ({len(arquivos_extraidos)} arquivos)")
     except ZipValidationError as e:
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = f"Zip rejeitado: {e}"
+        _set_job(protocolo, status="erro", detalhe=f"Zip rejeitado: {e}")
         print(f"[{protocolo}] ✗ Zip rejeitado: {e}")
         return
     except zipfile.BadZipFile:
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = "Arquivo .zip inválido ou corrompido"
+        _set_job(protocolo, status="erro", detalhe="Arquivo .zip inválido ou corrompido")
         return
 
     pipeline_completo(
         user_id, protocolo, pasta_job, pasta_extraida,
-        repositorio, contexto_projeto, email_usuario, nome_usuario,
+        repositorio, contexto_projeto, email_usuario, nome_usuario, projeto_id,
     )
 
 
@@ -746,9 +864,10 @@ def _preparar_e_executar_github(
     contexto_projeto: str | None,
     email_usuario:    str,
     nome_usuario:     str,
+    projeto_id:       str | None = None,
 ):
     """Clona o repositório GitHub e entrega pasta_extraida ao pipeline."""
-    _status_jobs[protocolo]["status"] = "clonando"
+    _set_job(protocolo, status="clonando")
     pasta_extraida = pasta_job / "repo"
 
     # Monta URL autenticada: https://<token>@github.com/org/repo.git
@@ -771,8 +890,7 @@ def _preparar_e_executar_github(
             netloc=f"{github_token}@{parsed.hostname}{':' + str(parsed.port) if parsed.port else ''}"
         ))
     except ValueError as e:
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = f"URL inválida: {e}"
+        _set_job(protocolo, status="erro", detalhe=f"URL inválida: {e}")
         print(f"[{protocolo}] ✗ URL GitHub inválida: {e}")
         return
 
@@ -792,12 +910,10 @@ def _preparar_e_executar_github(
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # evita prompt interativo
         )
     except subprocess.TimeoutExpired:
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = "Timeout ao clonar repositório (> 5 min)"
+        _set_job(protocolo, status="erro", detalhe="Timeout ao clonar repositório (> 5 min)")
         return
     except FileNotFoundError:
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = "git não encontrado no servidor"
+        _set_job(protocolo, status="erro", detalhe="git não encontrado no servidor")
         return
 
     if proc.returncode != 0:
@@ -813,15 +929,14 @@ def _preparar_e_executar_github(
         else:
             detalhe = f"Falha no clone: {stderr[-300:]}"
 
-        _status_jobs[protocolo]["status"] = "erro"
-        _status_jobs[protocolo]["detalhe"] = detalhe
+        _set_job(protocolo, status="erro", detalhe=detalhe)
         print(f"[{protocolo}] ✗ git clone falhou: {stderr[-200:]}")
         return
 
     print(f"[{protocolo}] Clone concluído em {pasta_extraida}")
     pipeline_completo(
         user_id, protocolo, pasta_job, pasta_extraida,
-        github_url, contexto_projeto, email_usuario, nome_usuario,
+        github_url, contexto_projeto, email_usuario, nome_usuario, projeto_id,
     )
 
 
@@ -834,6 +949,7 @@ def pipeline_completo(
     contexto_projeto: str | None,
     email_usuario:    str,
     nome_usuario:     str,
+    projeto_id:       str | None = None,
 ):
     pasta_resultado = pasta_resultados_usuario(user_id) / protocolo
     pasta_resultado.mkdir(parents=True, exist_ok=True)
@@ -842,7 +958,7 @@ def pipeline_completo(
         # ── 2. Padroniza contexto do projeto ──────────────────────────────────
         contexto_padronizado = None
         if contexto_projeto and contexto_projeto.strip():
-            _status_jobs[protocolo]["status"] = "processando_contexto"
+            _set_job(protocolo, status="processando_contexto")
             print(f"[{protocolo}] Padronizando contexto do projeto...")
             contexto_padronizado = padronizar_contexto_projeto(contexto_projeto.strip())
             print(f"[{protocolo}] Contexto: {contexto_padronizado}")
@@ -943,6 +1059,7 @@ def pipeline_completo(
         resultado = {
             "protocolo":             protocolo,
             "user_id":               user_id,
+            "projeto_id":            projeto_id,
             "repositorio":           repositorio,
             "contexto_projeto":      contexto_padronizado,
             "analisado_em":          achados.get("analisado_em"),
@@ -960,7 +1077,7 @@ def pipeline_completo(
             "vulnerabilidades":      vulnerabilidades,
         }
         salvar_resultado(user_id, protocolo, resultado)
-        _status_jobs[protocolo]["status"] = "priorizado"
+        _set_job(protocolo, status="priorizado")
 
         # ── 6. Ghost ─────────────────────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "corrigindo"
@@ -995,7 +1112,7 @@ def pipeline_completo(
         resultado["status"]       = "concluido"
         resultado["corrigido_em"] = datetime.now(timezone.utc).isoformat()
         salvar_resultado(user_id, protocolo, resultado)
-        _status_jobs[protocolo]["status"] = "concluido"
+        _set_job(protocolo, status="concluido")
 
         # ── 8.5. Vault Obsidian ───────────────────────────────────────────────
         try:
@@ -1027,12 +1144,12 @@ def pipeline_completo(
             )
             resultado["vault_zip"] = str(zip_vault)
             salvar_resultado(user_id, protocolo, resultado)
-            _status_jobs[protocolo]["vault_pronto"] = True
+            _set_job(protocolo, vault_pronto=True)
             print(f"[{protocolo}] Vault Obsidian gerado → {zip_vault}")
         except Exception as e_vault:
             print(f"[{protocolo}] ⚠ Vault Obsidian falhou (não crítico): {e_vault}")
 
-        _status_jobs[protocolo]["status"] = "concluido"
+        _set_job(protocolo, status="concluido")
 
         # ── 9. E-mail de notificação ──────────────────────────────────────────
         print(f"[{protocolo}] Enviando e-mail para {email_usuario}...")
@@ -1115,12 +1232,17 @@ def raiz():
 @app.get("/vulnerabilidades")
 def listar_vulnerabilidades(
     protocolo:  Optional[str] = None,
+    projeto_id: Optional[str] = None,
     severidade: Optional[str] = None,
     origem:     Optional[str] = None,
     score_min:  Optional[int] = None,
     usuario:    dict = Depends(usuario_autenticado),
 ):
-    resultado = carregar_resultado(usuario["id"], protocolo)
+    if protocolo:
+        resultado = carregar_resultado(usuario["id"], protocolo)
+    else:
+        todos = carregar_todos_resultados(usuario["id"], projeto_id)
+        resultado = todos[0] if todos else None
     if not resultado:
         raise HTTPException(status_code=404, detail="Nenhuma análise disponível ainda")
     if resultado.get("user_id") != usuario["id"]:
@@ -1130,7 +1252,11 @@ def listar_vulnerabilidades(
     if severidade:
         vulns = [v for v in vulns if v.get("severidade", "").upper() == severidade.upper()]
     if origem:
-        vulns = [v for v in vulns if v.get("origem", "").lower() == origem.lower()]
+        vulns = [
+            v for v in vulns
+            if v.get("origem", "").lower() == origem.lower()
+            or origem.lower() in [o.lower() for o in (v.get("origens_confirmadas") or [])]
+        ]
     if score_min is not None:
         vulns = [v for v in vulns if v.get("score") and float(v["score"]) >= score_min]
 
@@ -1143,10 +1269,15 @@ def listar_vulnerabilidades(
 
 @app.get("/relatorio")
 def relatorio_completo(
-    protocolo: Optional[str] = None,
-    usuario:   dict = Depends(usuario_autenticado),
+    protocolo:  Optional[str] = None,
+    projeto_id: Optional[str] = None,
+    usuario:    dict = Depends(usuario_autenticado),
 ):
-    resultado = carregar_resultado(usuario["id"], protocolo)
+    if protocolo:
+        resultado = carregar_resultado(usuario["id"], protocolo)
+    else:
+        todos = carregar_todos_resultados(usuario["id"], projeto_id)
+        resultado = todos[0] if todos else None
     if not resultado:
         raise HTTPException(status_code=404, detail="Nenhuma análise disponível ainda")
     if resultado.get("user_id") != usuario["id"]:
@@ -1235,7 +1366,7 @@ def marcar_relatorio_lido(protocolo: str, usuario: dict = Depends(usuario_autent
 def scan_pendente(usuario: dict = Depends(usuario_autenticado)):
     """
     Consultado pelo Data-Control a cada 60s.
-    Retorna se há um scan agendado para este usuário.
+    Aceita session_token OU client_token no Bearer.
     Por ora sempre False — será alimentado pelo Nexus futuramente.
     """
     pendente = _status_jobs.get(f"agendado_{usuario['id']}", False)
@@ -1243,21 +1374,29 @@ def scan_pendente(usuario: dict = Depends(usuario_autenticado)):
 
 
 @app.get("/resultados")
-def listar_resultados(usuario: dict = Depends(usuario_autenticado)):
-    base = pasta_resultados_usuario(usuario["id"])
-    if not base.exists():
-        return {"resultados": []}
-    protocolos = [
-        {
-            "protocolo":           p.name,
-            "relatorio":           (p / "relatorio.json").exists(),
-            "findings":            (p / "findings.json").exists(),
-            "enriquecido":         (p / "resultado_enriquecido.json").exists(),
-            "relatorio_executivo": (p / "relatorio_executivo.json").exists(),
-        }
-        for p in sorted(base.iterdir()) if p.is_dir()
-    ]
-    return {"resultados": protocolos}
+def listar_resultados(
+    projeto_id: Optional[str] = None,
+    usuario: dict = Depends(usuario_autenticado),
+):
+    todos = carregar_todos_resultados(usuario["id"], projeto_id)
+    return {
+        "resultados": [
+            {
+                "protocolo":           r.get("protocolo"),
+                "repositorio":         r.get("repositorio"),
+                "projeto_id":          r.get("projeto_id"),
+                "status":              r.get("status"),
+                "analisado_em":        r.get("analisado_em"),
+                "corrigido_em":        r.get("corrigido_em"),
+                "total_encontrado":    r.get("total_encontrado"),
+                "relatorio":           True,
+                "relatorio_executivo": bool(
+                    (pasta_resultados_usuario(usuario["id"]) / str(r.get("protocolo", "")) / "relatorio_executivo.json").exists()
+                ),
+            }
+            for r in todos
+        ]
+    }
 
 
 @app.get("/status")
@@ -1273,3 +1412,103 @@ def status_analise(usuario: dict = Depends(usuario_autenticado)):
         "corrigido_em": resultado.get("corrigido_em"),
         "modelo_ia":    resultado.get("modelo_ia", ""),
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROJETOS
+# ══════════════════════════════════════════════════════════════════════════════
+class ProjetoCreateBody(BaseModel):
+    nome:       str
+    contexto:   dict | str | None = None
+    github_url: str | None = None
+
+
+class ProjetoUpdateBody(BaseModel):
+    nome:       str | None = None
+    contexto:   dict | str | None = None
+    github_url: str | None = None
+
+
+@app.post("/projetos")
+def criar_projeto_endpoint(body: ProjetoCreateBody, usuario: dict = Depends(usuario_autenticado)):
+    if not body.nome or not body.nome.strip():
+        raise HTTPException(status_code=400, detail="Nome do projeto é obrigatório")
+    projeto = db.criar_projeto(
+        user_id=usuario["id"],
+        nome=body.nome.strip(),
+        contexto=body.contexto,
+        github_url=body.github_url,
+    )
+    return projeto
+
+
+@app.get("/projetos")
+def listar_projetos_endpoint(usuario: dict = Depends(usuario_autenticado)):
+    return {"projetos": db.listar_projetos(usuario["id"])}
+
+
+@app.get("/projetos/{projeto_id}")
+def detalhe_projeto(projeto_id: str, usuario: dict = Depends(usuario_autenticado)):
+    projeto = db.buscar_projeto(projeto_id)
+    if not projeto or projeto["user_id"] != usuario["id"]:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    scans = carregar_todos_resultados(usuario["id"], projeto_id)
+    return {
+        **projeto,
+        "scans": [
+            {
+                "protocolo": r.get("protocolo"),
+                "status": r.get("status"),
+                "analisado_em": r.get("analisado_em"),
+                "total_encontrado": r.get("total_encontrado"),
+            }
+            for r in scans
+        ],
+    }
+
+
+@app.patch("/projetos/{projeto_id}")
+def atualizar_projeto_endpoint(
+    projeto_id: str,
+    body: ProjetoUpdateBody,
+    usuario: dict = Depends(usuario_autenticado),
+):
+    projeto = db.atualizar_projeto(
+        projeto_id=projeto_id,
+        user_id=usuario["id"],
+        nome=body.nome,
+        contexto=body.contexto,
+        github_url=body.github_url,
+    )
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    return projeto
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONTEXTO + POSTURA
+# ══════════════════════════════════════════════════════════════════════════════
+class ContextoPadronizarBody(BaseModel):
+    texto_livre: str
+
+
+@app.post("/contexto/padronizar")
+def contexto_padronizar(body: ContextoPadronizarBody, usuario: dict = Depends(usuario_autenticado)):
+    """Expõe padronizar_contexto_projeto para o modo guiado do Nexus."""
+    if not body.texto_livre or not body.texto_livre.strip():
+        raise HTTPException(status_code=400, detail="texto_livre é obrigatório")
+    return padronizar_contexto_projeto(body.texto_livre.strip())
+
+
+@app.get("/postura")
+def obter_postura(
+    projeto_id: Optional[str] = None,
+    usuario: dict = Depends(usuario_autenticado),
+):
+    """Agregação histórica para a tela Postura. Lógica em postura.py."""
+    from postura import calcular_postura
+    return calcular_postura(
+        user_id=usuario["id"],
+        projeto_id=projeto_id,
+        carregar_todos=carregar_todos_resultados,
+    )
