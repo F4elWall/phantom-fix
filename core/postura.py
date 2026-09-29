@@ -2,12 +2,16 @@
 PhantomFix — postura.py
 Agregação histórica mecânica para a tela Postura do Dashboard.
 Não chama LLM. Cache em memória com TTL de 60s.
+
+Criptografia: lê as notas do vault (criptografia/*.md) — parte da
+contextualização do projeto. Fallback: campo no relatório / inferência.
 """
 
 from __future__ import annotations
 
-import json
+import re
 import time
+import zipfile
 from pathlib import Path
 from typing import Callable
 
@@ -45,6 +49,18 @@ _FUNCIONAL = {
     "hmac", "pbkdf2", "argon2", "scrypt", "bcrypt",
 }
 
+# Mapa texto do semáforo nas notas do vault → categoria
+_SEMAFORO_TEXTO = {
+    "legado": "legado",
+    "🔴": "legado",
+    "funcional": "funcional",
+    "🟡": "funcional",
+    "padrao ouro": "padrao_ouro",
+    "padrão ouro": "padrao_ouro",
+    "padrao_ouro": "padrao_ouro",
+    "🟢": "padrao_ouro",
+}
+
 
 def _classificar_algo(nome: str) -> str:
     n = nome.lower().strip().replace("_", "-")
@@ -54,14 +70,169 @@ def _classificar_algo(nome: str) -> str:
         return "padrao_ouro"
     if n in _FUNCIONAL or any(n.startswith(x) for x in _FUNCIONAL):
         return "funcional"
-    return "funcional"  # desconhecido → funcional por padrão
+    return "funcional"
+
+
+def _buckets_vazios() -> dict:
+    return {
+        "legado": {"count": 0, "exemplos": []},
+        "funcional": {"count": 0, "exemplos": []},
+        "padrao_ouro": {"count": 0, "exemplos": []},
+    }
+
+
+def _parse_nota_criptografia(texto: str, nome_arquivo: str) -> tuple[str, str] | None:
+    """
+    Extrai (nome_algo, categoria) de uma nota criptografia/*.md do vault.
+    Exemplo de conteúdo:
+      # 🔒 SHA1
+      **Semáforo:** 🔴 Legado
+    """
+    # Nome: título markdown ou stem do arquivo
+    m_titulo = re.search(r"^#\s+[🔒🔐]?\s*(.+)$", texto, re.MULTILINE)
+    nome = (m_titulo.group(1).strip() if m_titulo else Path(nome_arquivo).stem).strip()
+    if not nome:
+        return None
+
+    # Semáforo explícito na nota
+    m_sem = re.search(
+        r"\*\*Sem[aá]foro:\*\*\s*([🔴🟡🟢])?\s*([^\n*]+)",
+        texto,
+        re.IGNORECASE,
+    )
+    if m_sem:
+        emoji = (m_sem.group(1) or "").strip()
+        label = (m_sem.group(2) or "").strip().lower()
+        if emoji in _SEMAFORO_TEXTO:
+            return nome, _SEMAFORO_TEXTO[emoji]
+        for chave, cat in _SEMAFORO_TEXTO.items():
+            if chave in label:
+                return nome, cat
+
+    # Sem semáforo na nota → classifica pelo nome do algoritmo
+    return nome, _classificar_algo(nome)
+
+
+def _ler_criptografia_do_vault(vault_zip: str | Path | None) -> dict | None:
+    """
+    Lê notas criptografia/*.md de dentro do .zip do vault.
+    Retorna buckets ou None se o vault não existir / não tiver notas.
+    """
+    if not vault_zip:
+        return None
+    path = Path(vault_zip)
+    if not path.exists() or not path.is_file():
+        return None
+
+    buckets = _buckets_vazios()
+    vistos: set[str] = set()
+    achou = False
+
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            for info in zf.infolist():
+                # aceita criptografia/sha1.md ou pasta/criptografia/sha1.md
+                nome_norm = info.filename.replace("\\", "/")
+                if info.is_dir():
+                    continue
+                if "/criptografia/" not in f"/{nome_norm}" and not nome_norm.startswith("criptografia/"):
+                    continue
+                if not nome_norm.lower().endswith(".md"):
+                    continue
+                try:
+                    texto = zf.read(info).decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+                parsed = _parse_nota_criptografia(texto, Path(nome_norm).name)
+                if not parsed:
+                    continue
+                nome, cat = parsed
+                key = nome.lower()
+                if key in vistos:
+                    continue
+                vistos.add(key)
+                achou = True
+                buckets[cat]["count"] += 1
+                if len(buckets[cat]["exemplos"]) < 5:
+                    buckets[cat]["exemplos"].append(nome)
+    except (zipfile.BadZipFile, OSError) as e:
+        print(f"  ⚠ postura: não leu vault {path}: {e}")
+        return None
+
+    return buckets if achou else None
+
+
+def _ler_criptografia_pasta_vault(pasta: Path | None) -> dict | None:
+    """Lê criptografia/*.md de uma pasta de vault já extraída (vaults/<slug>/)."""
+    if not pasta or not pasta.is_dir():
+        return None
+    cripto_dir = pasta / "criptografia"
+    if not cripto_dir.is_dir():
+        # tenta um nível abaixo (zip extrai com pasta raiz às vezes)
+        for sub in pasta.iterdir():
+            if sub.is_dir() and (sub / "criptografia").is_dir():
+                cripto_dir = sub / "criptografia"
+                break
+        else:
+            return None
+
+    buckets = _buckets_vazios()
+    vistos: set[str] = set()
+    achou = False
+    for md in cripto_dir.glob("*.md"):
+        try:
+            texto = md.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        parsed = _parse_nota_criptografia(texto, md.name)
+        if not parsed:
+            continue
+        nome, cat = parsed
+        key = nome.lower()
+        if key in vistos:
+            continue
+        vistos.add(key)
+        achou = True
+        buckets[cat]["count"] += 1
+        if len(buckets[cat]["exemplos"]) < 5:
+            buckets[cat]["exemplos"].append(nome)
+    return buckets if achou else None
 
 
 def _agregar_criptografia(relatorio: dict) -> dict:
-    """Lê algoritmos_criptografia do relatório ou infere dos findings."""
+    """
+    Ordem de leitura (contextualização do projeto):
+      1. Vault do scan (vault_zip → criptografia/*.md)
+      2. Pasta de vault unificada (se vault_dir no relatório)
+      3. Campo algoritmos_criptografia no relatório
+      4. Inferência fraca a partir dos findings (último recurso)
+    """
+    # 1) ZIP do vault gerado no pipeline
+    do_vault = _ler_criptografia_do_vault(relatorio.get("vault_zip"))
+    if do_vault:
+        return do_vault
+
+    # 2) Pasta extraída / vault unificado
+    vault_dir = relatorio.get("vault_dir")
+    if vault_dir:
+        do_pasta = _ler_criptografia_pasta_vault(Path(vault_dir))
+        if do_pasta:
+            return do_pasta
+
+    # 3) Campo explícito no relatório
     algos_raw = relatorio.get("algoritmos_criptografia") or []
+    if isinstance(algos_raw, dict):
+        # já no formato de buckets
+        if "legado" in algos_raw:
+            return {
+                "legado": algos_raw.get("legado") or {"count": 0, "exemplos": []},
+                "funcional": algos_raw.get("funcional") or {"count": 0, "exemplos": []},
+                "padrao_ouro": algos_raw.get("padrao_ouro") or {"count": 0, "exemplos": []},
+            }
+        algos_raw = list(algos_raw.keys())
+
+    # 4) Inferência a partir dos findings
     if not algos_raw:
-        # tenta extrair de findings com tipo relacionado a crypto
         for v in relatorio.get("vulnerabilidades", []):
             tipo = (v.get("tipo") or "").lower()
             desc = (v.get("descricao") or "").lower()
@@ -70,11 +241,7 @@ def _agregar_criptografia(relatorio: dict) -> dict:
                     algos_raw.append(palavra.upper() if len(palavra) <= 6 else palavra)
                     break
 
-    buckets = {
-        "legado": {"count": 0, "exemplos": []},
-        "funcional": {"count": 0, "exemplos": []},
-        "padrao_ouro": {"count": 0, "exemplos": []},
-    }
+    buckets = _buckets_vazios()
     vistos: set[str] = set()
     for a in algos_raw:
         nome = str(a).strip()
