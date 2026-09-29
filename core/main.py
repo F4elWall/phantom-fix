@@ -1,11 +1,12 @@
 """
 PhantomFix — Core
-Versão: 0.8.0
+Versão: 0.9.0
 Autor e revisor: Rafael Pedro
 
 Desrição:
 Recebe o .zip do cliente, extrai numa pasta temporária, aciona o scanner.py,
-aciona o analyser.py, aciona o Ghost, gera relatório executivo via Spirit
+aciona o analyser.py, constrói o grafo NetworkX + PhantomScore,
+aciona o Ghost, gera relatório executivo via Spirit
 e envia e-mail de notificação via Gmail (smtplib — sem dependência externa).
 """
 
@@ -40,7 +41,20 @@ from database import db
 from zip_validator import validar_e_extrair_zip, ZipValidationError
 from vault.vault_obsidian import gerar_vault
 
-app = FastAPI(title="PhantomFix Core", version="0.8.0")
+try:
+    from grafo import (
+        correlacionar_cross_origem,
+        construir_grafo,
+        calcular_phantom_score_batch,
+        exportar_grafo_json,
+        estatisticas_grafo,
+    )
+    GRAFO_DISPONIVEL = True
+except ImportError as e:
+    print(f"⚠ grafo.py / networkx indisponível — PhantomScore desligado: {e}")
+    GRAFO_DISPONIVEL = False
+
+app = FastAPI(title="PhantomFix Core", version="0.9.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -894,6 +908,37 @@ def pipeline_completo(
             print(f"[{protocolo}] ⚠ Analyser falhou — usando findings brutos")
             achados_finais = achados
 
+        # ── 4.5. Correlação cross-origem + Grafo + PhantomScore ──────────────
+        grafo_stats: dict = {}
+        if GRAFO_DISPONIVEL:
+            try:
+                _status_jobs[protocolo]["status"] = "construindo_grafo"
+                print(f"[{protocolo}] Correlacionando findings cross-origem...")
+                vulnerabilidades, _suprimidos = correlacionar_cross_origem(vulnerabilidades)
+
+                print(f"[{protocolo}] Construindo grafo de ataque...")
+                grafo, reachability = construir_grafo(vulnerabilidades)
+                vulnerabilidades    = calcular_phantom_score_batch(vulnerabilidades, reachability)
+                grafo_stats         = estatisticas_grafo(grafo, reachability)
+                grafo_json          = exportar_grafo_json(grafo)
+
+                (pasta_resultado / "grafo.json").write_text(
+                    json.dumps(grafo_json, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                print(
+                    f"[{protocolo}] Grafo: {grafo_stats.get('total_nos', 0)} nós, "
+                    f"{grafo_stats.get('total_arestas', 0)} arestas, "
+                    f"{grafo_stats.get('caminhos_ataque', 0)} caminhos de ataque"
+                )
+            except Exception as e_grafo:
+                print(f"[{protocolo}] ⚠ Grafo/PhantomScore falhou (não crítico): {e_grafo}")
+                grafo_stats = {}
+        else:
+            print(f"[{protocolo}] ⚠ Grafo pulado — instale networkx (`pip install networkx`)")
+
+        n_correl_grafo = sum(1 for v in vulnerabilidades if v.get("correlacao_relacao"))
+        n_correl_ia    = achados_finais.get("total_correlacionados", 0)
+
         # ── 5. Salva versão inicial do relatório ─────────────────────────────
         resultado = {
             "protocolo":             protocolo,
@@ -902,14 +947,15 @@ def pipeline_completo(
             "contexto_projeto":      contexto_padronizado,
             "analisado_em":          achados.get("analisado_em"),
             "processado_em":         datetime.now(timezone.utc).isoformat(),
-            "total_encontrado":      achados.get("total_encontrado", len(vulnerabilidades)),
+            "total_encontrado":      len(vulnerabilidades),
             "origem_semgrep":        achados.get("origem_semgrep",  0),
             "origem_zap":            achados.get("origem_zap",      0),
             "origem_gitleaks":       achados.get("origem_gitleaks", 0),
             "origem_trivy":          achados.get("origem_trivy",    0),
-            "total_correlacionados": achados_finais.get("total_correlacionados", 0),
+            "total_correlacionados": n_correl_ia + n_correl_grafo,
             "analisado_por_ia":      achados_finais.get("analisado_por_agente", False),
             "modelo_ia":             achados_finais.get("modelo_ia", ""),
+            "grafo":                 grafo_stats,
             "status":                "gerando_correcoes",
             "vulnerabilidades":      vulnerabilidades,
         }
@@ -1063,7 +1109,7 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/")
 def raiz():
-    return {"status": "PhantomFix Core funcionando", "versao": "0.8.0"}
+    return {"status": "PhantomFix Core funcionando", "versao": "0.9.0"}
 
 
 @app.get("/vulnerabilidades")
