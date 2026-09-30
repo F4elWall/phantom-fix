@@ -51,7 +51,7 @@ app.add_middleware(
 
 # ── Modelos e clientes globais ─────────────────────────────────────────────────
 _embedder: SentenceTransformer | None = None
-_chroma:   chromadb.Client     | None = None
+_chroma = None
 _relatorio_cache: dict | None = None
 
 
@@ -64,7 +64,7 @@ def get_embedder() -> SentenceTransformer:
     return _embedder
 
 
-def get_chroma() -> chromadb.Client:
+def get_chroma():
     global _chroma
     if _chroma is None:
         CHROMA_DIR.mkdir(parents=True, exist_ok=True)
