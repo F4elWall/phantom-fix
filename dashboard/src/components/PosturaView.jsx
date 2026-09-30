@@ -1,14 +1,8 @@
 /**
- * PosturaView.jsx — substitui Home.jsx
+ * PosturaView.jsx
  * Autora e revisão: Giovana Esmelardi / Rafael Pedro
  *
- * Exibe a postura histórica de segurança:
- *   • PhantomScore do último scan + delta vs. anterior
- *   • Mini-gráfico de tendência (sparkbar)
- *   • Recorrentes detectados por fingerprint ou tipo+arquivo+linha
- *   • Recomendação proativa do Spirit (chamada única ao montar)
- *   • Lista de scans clicáveis → chama onRelatorioCarregado
- *   • Banner de pipeline ativo (polling herdado do Home)
+ * Alteração: botão "Configurar projeto" no topbar → chama onConfigurarProjeto()
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -38,12 +32,10 @@ function formatarData(iso) {
   });
 }
 
-/** Fingerprint canônico: usa o campo do analyser se disponível, senão monta chave. */
 function fp(vuln) {
   return vuln.fingerprint || `${vuln.tipo || ""}|${vuln.arquivo || ""}|${vuln.linha || ""}`;
 }
 
-/** Retorna vulns do scan mais recente que também existem no anterior. */
 function calcularRecorrentes(entradaAnterior, entradaAtual) {
   if (!entradaAnterior || !entradaAtual) return [];
   const setAnt = new Set((entradaAnterior.vulnerabilidades || []).map(fp));
@@ -64,16 +56,20 @@ function classeScore(score) {
   return "baixa";
 }
 
-export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onSair }) {
-  const [posturaData, setPosturaData]           = useState([]);
-  const [carregando, setCarregando]             = useState(true);
-  const [pipeline, setPipeline]                 = useState(null);
-  const [abrindo, setAbrindo]                   = useState(null);
-  const [spiritMsg, setSpiritMsg]               = useState(null);
-  const [spiritCarregando, setSpiritCarregando] = useState(false);
-  const spiritChamado                           = useRef(false);
+export default function PosturaView({
+  onRelatorioCarregado,
+  onAbrirPipeline,
+  onConfigurarProjeto,  // ← novo: leva de volta ao Welcome na aba de contexto
+  onSair,
+}) {
+  const [posturaData,        setPosturaData]        = useState([]);
+  const [carregando,         setCarregando]         = useState(true);
+  const [pipeline,           setPipeline]           = useState(null);
+  const [abrindo,            setAbrindo]            = useState(null);
+  const [spiritMsg,          setSpiritMsg]          = useState(null);
+  const [spiritCarregando,   setSpiritCarregando]   = useState(false);
+  const spiritChamado = useRef(false);
 
-  // ── Carrega postura ────────────────────────────────────────────────────────
   useEffect(() => {
     let ok = true;
     (async () => {
@@ -87,7 +83,6 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
     return () => { ok = false; };
   }, []);
 
-  // ── Polling de scan ativo (idêntico ao Home) ───────────────────────────────
   useEffect(() => {
     let cancelado = false;
     const id = setInterval(async () => {
@@ -109,20 +104,16 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
     return () => { cancelado = true; clearInterval(id); };
   }, [onRelatorioCarregado]);
 
-  // ── Recomendação do Spirit — disparada uma única vez quando os dados chegam ─
   useEffect(() => {
     if (spiritChamado.current || posturaData.length === 0 || spiritCarregando) return;
     spiritChamado.current = true;
-
     const ultimo = posturaData[0];
     if (!ultimo) return;
-
     const top3 = [...(ultimo.vulnerabilidades || [])]
       .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0))
       .slice(0, 3)
       .map((v) => `- ${(v.tipo || "desconhecido").replace(/^CWE-\d+\s*/i, "")} (score ${v.score ?? 0}) em ${v.arquivo || "?"}`)
       .join("\n");
-
     const prompt =
       `Com base na postura de segurança atual do projeto "${ultimo.repositorio || "projeto"}":\n` +
       `- PhantomScore: ${ultimo.score ?? "—"}/10 (${labelScore(ultimo.score ?? 0)})\n` +
@@ -130,31 +121,27 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
       `(${ultimo.criticas} críticas, ${ultimo.altas} altas, ${ultimo.medias} médias, ${ultimo.baixas} baixas)\n` +
       `- Top 3 mais críticos:\n${top3 || "- Nenhum"}\n\n` +
       `Em até 3 frases objetivas, diga o que a equipe deve priorizar agora.`;
-
     setSpiritCarregando(true);
     perguntarSpirit(prompt, {
       repositorio: ultimo.repositorio,
       vulnerabilidades: (ultimo.vulnerabilidades || []).slice(0, 5),
     })
       .then((resp) => { if (resp?.resposta) setSpiritMsg(resp.resposta); })
-      .catch(() => { /* Spirit pode estar offline */ })
+      .catch(() => {})
       .finally(() => setSpiritCarregando(false));
   }, [posturaData]);
 
-  // ── Derivações ─────────────────────────────────────────────────────────────
-  const semDados    = !carregando && posturaData.length === 0;
-  const ultimo      = posturaData[0] ?? null;
-  const penultimo   = posturaData[1] ?? null;
+  const semDados  = !carregando && posturaData.length === 0;
+  const ultimo    = posturaData[0] ?? null;
+  const penultimo = posturaData[1] ?? null;
   const delta =
     ultimo !== null && penultimo !== null &&
     ultimo.score !== null && penultimo.score !== null
       ? parseFloat((ultimo.score - penultimo.score).toFixed(1))
       : null;
   const recorrentes = calcularRecorrentes(penultimo, ultimo);
-
-  const etapa    = pipeline ? (ETAPAS[pipeline.status] ?? null) : null;
-  const rodando  = pipeline && pipeline.status &&
-    !["concluido", "erro"].includes(pipeline.status);
+  const etapa   = pipeline ? (ETAPAS[pipeline.status] ?? null) : null;
+  const rodando = pipeline && pipeline.status && !["concluido", "erro"].includes(pipeline.status);
 
   async function abrirRelatorio(protocolo) {
     if (abrindo) return;
@@ -167,28 +154,43 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="postura-shell">
-      {/* Topbar mínima */}
+
+      {/* ── Topbar ───────────────────────────────────────────────────────────── */}
       <div className="postura-topbar">
         <img src={logo} alt="PhantomFix" className="postura-topbar-logo" />
         <span className="postura-topbar-titulo">Postura de Segurança</span>
-        {onSair && (
-          <button className="postura-btn-sair" onClick={onSair}>Sair</button>
-        )}
+
+        <div className="postura-topbar-acoes">
+          {/* ← NOVO: botão Configurar projeto */}
+          {onConfigurarProjeto && (
+            <button
+              className="postura-btn-configurar"
+              onClick={onConfigurarProjeto}
+              title="Configurar contexto do projeto"
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.25 5v3.44l2.15 2.15.9-.9-1.8-1.79V5H7.25z" fill="currentColor"/>
+              </svg>
+              Configurar projeto
+            </button>
+          )}
+
+          {onSair && (
+            <button className="postura-btn-sair" onClick={onSair}>Sair</button>
+          )}
+        </div>
       </div>
 
       <main className="postura-main">
 
-        {/* ── Banner de pipeline ativo ──────────────────────────────────── */}
+        {/* ── Banner de pipeline ativo ──────────────────────────────────────── */}
         {pipeline && etapa && (
           <div className="postura-pipeline-banner">
             <div className="postura-pipeline-info">
               {rodando && <span className="postura-pipeline-pulse" />}
-              <span className="postura-pipeline-repo">
-                {pipeline.repositorio || "Repositório"}
-              </span>
+              <span className="postura-pipeline-repo">{pipeline.repositorio || "Repositório"}</span>
               <span className="postura-pipeline-etapa">{etapa.label}</span>
             </div>
             <div className="postura-pipeline-barra-bg">
@@ -208,7 +210,7 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
           </div>
         )}
 
-        {/* ── Sem dados ────────────────────────────────────────────────── */}
+        {/* ── Sem dados ─────────────────────────────────────────────────────── */}
         {semDados && !pipeline && (
           <div className="postura-vazio">
             <img src={logo} alt="PhantomFix" className="postura-vazio-logo" />
@@ -217,10 +219,21 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
               Envie um repositório pelo Client desktop e sua postura de segurança
               aparecerá aqui automaticamente.
             </p>
+            {onConfigurarProjeto && (
+              <button
+                className="postura-btn-configurar postura-btn-configurar-vazio"
+                onClick={onConfigurarProjeto}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.25 5v3.44l2.15 2.15.9-.9-1.8-1.79V5H7.25z" fill="currentColor"/>
+                </svg>
+                Configurar projeto e iniciar análise
+              </button>
+            )}
           </div>
         )}
 
-        {/* ── Carregando ───────────────────────────────────────────────── */}
+        {/* ── Carregando ────────────────────────────────────────────────────── */}
         {carregando && (
           <div className="postura-carregando">
             <div className="postura-spinner" />
@@ -228,14 +241,10 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
           </div>
         )}
 
-        {/* ── Conteúdo principal ───────────────────────────────────────── */}
+        {/* ── Conteúdo principal ────────────────────────────────────────────── */}
         {!carregando && posturaData.length > 0 && (
           <>
-
-            {/* ── Cards de métricas ──────────────────────────────────── */}
             <div className="postura-metricas">
-
-              {/* PhantomScore */}
               <div className={`postura-metric-card postura-phantom-score sev-card-${classeScore(ultimo?.score ?? 0)}`}>
                 <div className="postura-metric-label">PhantomScore</div>
                 <div className="postura-metric-valor">
@@ -251,7 +260,6 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
                 )}
               </div>
 
-              {/* Último scan */}
               <div className="postura-metric-card">
                 <div className="postura-metric-label">Último scan</div>
                 <div className="postura-metric-valor postura-metric-total">
@@ -259,29 +267,19 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
                   <span className="postura-metric-max"> vulns</span>
                 </div>
                 <div className="postura-dist">
-                  {(ultimo?.criticas ?? 0) > 0 && (
-                    <span className="dist-chip critica">{ultimo.criticas} crítica{ultimo.criticas !== 1 ? "s" : ""}</span>
-                  )}
-                  {(ultimo?.altas ?? 0) > 0 && (
-                    <span className="dist-chip alta">{ultimo.altas} alta{ultimo.altas !== 1 ? "s" : ""}</span>
-                  )}
-                  {(ultimo?.medias ?? 0) > 0 && (
-                    <span className="dist-chip media">{ultimo.medias} média{ultimo.medias !== 1 ? "s" : ""}</span>
-                  )}
-                  {(ultimo?.baixas ?? 0) > 0 && (
-                    <span className="dist-chip baixa">{ultimo.baixas} baixa{ultimo.baixas !== 1 ? "s" : ""}</span>
-                  )}
+                  {(ultimo?.criticas ?? 0) > 0 && <span className="dist-chip critica">{ultimo.criticas} crítica{ultimo.criticas !== 1 ? "s" : ""}</span>}
+                  {(ultimo?.altas    ?? 0) > 0 && <span className="dist-chip alta">{ultimo.altas} alta{ultimo.altas !== 1 ? "s" : ""}</span>}
+                  {(ultimo?.medias   ?? 0) > 0 && <span className="dist-chip media">{ultimo.medias} média{ultimo.medias !== 1 ? "s" : ""}</span>}
+                  {(ultimo?.baixas   ?? 0) > 0 && <span className="dist-chip baixa">{ultimo.baixas} baixa{ultimo.baixas !== 1 ? "s" : ""}</span>}
                 </div>
               </div>
 
-              {/* Histórico */}
               <div className="postura-metric-card">
                 <div className="postura-metric-label">Scans registrados</div>
                 <div className="postura-metric-valor postura-metric-total">{posturaData.length}</div>
                 <div className="postura-metric-sub">nos últimos registros</div>
               </div>
 
-              {/* Recorrentes */}
               {recorrentes.length > 0 && (
                 <div className="postura-metric-card postura-metric-recorrentes">
                   <div className="postura-metric-label">Recorrentes</div>
@@ -291,13 +289,12 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
               )}
             </div>
 
-            {/* ── Tendência (sparkbar) ────────────────────────────────── */}
             {posturaData.length >= 2 && (
               <div className="postura-tendencia">
                 <h3 className="postura-secao-titulo">Tendência de Score</h3>
                 <div className="postura-spark">
                   {[...posturaData].reverse().map((entry, i, arr) => {
-                    const pct = ((entry.score ?? 0) / 10) * 100;
+                    const pct    = ((entry.score ?? 0) / 10) * 100;
                     const isAtual = i === arr.length - 1;
                     return (
                       <div key={entry.protocolo} className="postura-spark-col">
@@ -323,7 +320,6 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
               </div>
             )}
 
-            {/* ── Recomendação do Spirit ──────────────────────────────── */}
             {(spiritCarregando || spiritMsg) && (
               <div className="postura-spirit-rec">
                 <div className="postura-spirit-rec-header">
@@ -341,7 +337,6 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
               </div>
             )}
 
-            {/* ── Vulnerabilidades recorrentes ────────────────────────── */}
             {recorrentes.length > 0 && (
               <div className="postura-recorrentes">
                 <h3 className="postura-secao-titulo">
@@ -372,7 +367,6 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
               </div>
             )}
 
-            {/* ── Lista de scans ──────────────────────────────────────── */}
             <div className="postura-historico">
               <h3 className="postura-secao-titulo">Histórico de scans</h3>
               <div className="postura-historico-lista">
@@ -388,9 +382,7 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
                       <span className="postura-hist-data">{formatarData(entry.processado_em)}</span>
                     </div>
                     <div className="postura-hist-direita">
-                      <span className="postura-hist-score">
-                        Score <strong>{entry.score ?? "—"}</strong>
-                      </span>
+                      <span className="postura-hist-score">Score <strong>{entry.score ?? "—"}</strong></span>
                       <span className="postura-hist-total">{entry.total ?? "—"} vulns</span>
                       {i === 0 && <span className="postura-hist-badge-atual">mais recente</span>}
                     </div>
@@ -402,6 +394,25 @@ export default function PosturaView({ onRelatorioCarregado, onAbrirPipeline, onS
           </>
         )}
       </main>
+
+      {/* CSS adicional — idealmente mova para o .css global */}
+      <style>{`
+        .postura-topbar { display: flex; align-items: center; gap: 12px; }
+        .postura-topbar-acoes { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .postura-btn-configurar {
+          display: flex; align-items: center; gap: 6px;
+          background: none; border: 1px solid var(--border, rgba(255,255,255,.12));
+          border-radius: 8px; padding: 6px 14px; font: inherit; font-size: 13px;
+          color: var(--ink-dim, #9ca3af); cursor: pointer; transition: .15s;
+        }
+        .postura-btn-configurar:hover {
+          border-color: var(--violet, #a78bfa); color: var(--violet, #a78bfa);
+        }
+        .postura-btn-configurar-vazio {
+          margin-top: 20px; font-size: 14px; padding: 10px 20px;
+          border-color: var(--violet, #a78bfa); color: var(--violet, #a78bfa);
+        }
+      `}</style>
     </div>
   );
 }
