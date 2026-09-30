@@ -37,10 +37,15 @@ function sessaoSalva() {
 
 export default function App() {
   // --- [MODIFICAÇÃO]: Estado para o tema ---
-  const [tema, setTema] = useState(localStorage.getItem("theme") || "dark");
+
+  const [tema, setTema] = useState(localStorage.getItem("theme") || "neon");
 
   const toggleTema = () => {
-    setTema((prev) => (prev === "dark" ? "light" : "dark"));
+    setTema((prev) => {
+      if (prev === "neon")  return "dark";
+      if (prev === "dark")  return "light";
+      return "neon";
+    });
   };
 
   // --- [MODIFICAÇÃO]: Sincronizar tema com o atributo 'data-theme' no documento ---
