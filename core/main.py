@@ -69,6 +69,7 @@ GMAIL_APP_PASSWORD  = os.getenv("GMAIL_APP_PASSWORD")   # App Password de 16 cha
 EMAIL_FROM_NAME     = os.getenv("EMAIL_FROM_NAME", "PhantomFix")
 
 DASHBOARD_URL   = os.getenv("DASHBOARD_URL", "https://phantom-fix.southafricanorth.cloudapp.azure.com")
+RESET_PASSWORD_URL = "https://phantom-fix-dashboard.vercel.app"
 
 RESULTADOS_DIR  = Path(os.getenv("RESULTADOS_DIR", "../resultados"))
 RESULTADOS_DIR.mkdir(parents=True, exist_ok=True)
@@ -479,7 +480,7 @@ def enviar_email_reset(email_destino: str, nome_usuario: str, token_reset: str):
         print("  ⚠ GMAIL_USER / GMAIL_APP_PASSWORD não configurados — e-mail de reset não enviado")
         return
 
-    link = f"{DASHBOARD_URL}?reset_token={token_reset}"
+    link = f"{RESET_PASSWORD_URL}?reset_token={token_reset}"
 
     html_body = f"""<!DOCTYPE html>
 <html>
