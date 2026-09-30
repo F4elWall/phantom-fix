@@ -1151,6 +1151,17 @@ def pipeline_completo(
 
         _set_job(protocolo, status="concluido")
 
+        # ── 8.6. Reindexar Spirit ────────────────
+        try:
+            async with httpx.AsyncClient(timeout=30) as c:
+                await c.post(
+                    f"{SPIRIT_URL}/indexar",
+                    json={"user_id": user_id, "protocolo": protocolo},
+                )
+            print(f"[{protocolo}] Spirit reindexado")
+        except Exception as e:
+            print(f"[{protocolo}] ⚠ Spirit reindexar falhou (não crítico): {e}")
+
         # ── 9. E-mail de notificação ──────────────────────────────────────────
         print(f"[{protocolo}] Enviando e-mail para {email_usuario}...")
         enviar_email_conclusao(
