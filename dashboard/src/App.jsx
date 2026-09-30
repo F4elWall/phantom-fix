@@ -5,7 +5,7 @@ import Landing from "./components/Landing";
 import Login from "./components/Login";
 import SignUp from "./components/SignUp";
 import Welcome from "./components/Welcome";
-import Home from "./components/Home";
+import PosturaView from "./components/PosturaView";
 import ResultsView from "./components/ResultsView";
 import SpiritChat from "./components/SpiritChat";
 import PipelineView from "./components/PipelineView";
@@ -20,7 +20,7 @@ import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./
  *  auth             → login
  *  signup           → criar conta
  *  welcome          → pós-signup: exibe token + instrução de vínculo
- *  home             → carregando último relatório ou tela vazia
+ *  home             → PosturaView (postura histórica + pipeline status)
  *  pipeline         → acompanhar scan em andamento
  *  relatorio_executivo → relatório executivo gerado pelo Spirit
  *  results          → relatório de vulnerabilidades (dashboard completo)
@@ -65,7 +65,6 @@ export default function App() {
         if (ativo) {
           setScanState({ tipo: "rodando", protocolo: ativo.protocolo, repositorio: ativo.repositorio });
 
-          // FIX: só redireciona para o executivo se ainda não estamos nessa tela
           if (ativo.relatorio_executivo_pronto && tela !== "relatorio_executivo") {
             const exec = await buscarRelatorioExecutivo(ativo.protocolo);
             if (exec && !cancel) {
@@ -124,18 +123,18 @@ export default function App() {
     setTela("home");
   }
 
-async function onRelatorioCarregado(dados) {
-  setRelatorio(dados);
+  async function onRelatorioCarregado(dados) {
+    setRelatorio(dados);
 
-  try {
-    const exec = await buscarRelatorioExecutivo(dados?.protocolo);
-    if (exec) {
-      setRelatorioExecutivo(exec);
-    }
-  } catch { /* Spirit pode não ter gerado */ }
+    try {
+      const exec = await buscarRelatorioExecutivo(dados?.protocolo);
+      if (exec) {
+        setRelatorioExecutivo(exec);
+      }
+    } catch { /* Spirit pode não ter gerado */ }
 
-  setTela("results");
-}
+    setTela("results");
+  }
 
   const abrirPipeline = useCallback((protocolo) => {
     if (!protocolo) return;
@@ -143,9 +142,6 @@ async function onRelatorioCarregado(dados) {
     setTela("pipeline");
   }, []);
 
-  // FIX — busca o relatório executivo no momento em que o pipeline conclui,
-  // antes de decidir para qual tela ir. Antes, relatorioExecutivo era sempre
-  // null aqui porque o polling ainda não havia rodado após a conclusão.
   async function onConcluidoPipeline(rel) {
     setRelatorio(rel);
     setScanState({ tipo: "concluido" });
@@ -261,10 +257,11 @@ async function onRelatorioCarregado(dados) {
     );
   }
 
+  // home → PosturaView (com ou sem relatório)
   if (!relatorio || tela === "home") {
     return (
       <div className="app-shell">
-        <Home
+        <PosturaView
           onRelatorioCarregado={onRelatorioCarregado}
           onAbrirPipeline={abrirPipeline}
           onSair={sair}
