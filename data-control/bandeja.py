@@ -11,12 +11,30 @@ import tkinter as tk
 from tkinter import filedialog, simpledialog
 from pathlib import Path
 
+import requests
 import pystray
 from PIL import Image, ImageDraw
 from plyer import notification
 
 import config
 from keychain import salvar_token, carregar_token, remover_token, token_configurado
+
+CORE_URL_PADRAO = "https://phantom-fix.southafricanorth.cloudapp.azure.com/api/"
+
+
+def _vincular_token_no_core(token: str) -> bool:
+    """Chama POST /auth/link-client para marcar o client como vinculado."""
+    try:
+        core_url = config.get("core_url", CORE_URL_PADRAO).rstrip("/")
+        resp = requests.post(
+            f"{core_url}/auth/link-client",
+            json={"token": token},
+            timeout=10,
+        )
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[bandeja] Erro ao vincular token: {e}")
+        return False
 
 import sys
 from pathlib import Path
@@ -189,8 +207,16 @@ def _abrir_configuracoes():
         parent=root,
     )
     if novo_token and novo_token.strip():
-        salvar_token(novo_token.strip())
-        atualizar_status("Token atualizado ✓")
+        token_limpo = novo_token.strip()
+        salvar_token(token_limpo)
+        atualizar_status("Vinculando token...")
+        ok = _vincular_token_no_core(token_limpo)
+        if ok:
+            atualizar_status("Token vinculado ✓")
+            notificar("PhantomFix", "Conta vinculada com sucesso!")
+        else:
+            atualizar_status("Token salvo (sem conexão com o Core)")
+            notificar("PhantomFix — Aviso", "Token salvo localmente, mas não foi possível confirmar com o servidor.")
 
     # ── Pasta do repositório ──────────────────────────────────────────────────
     pasta_atual = cfg.get("pasta_repo", "")
