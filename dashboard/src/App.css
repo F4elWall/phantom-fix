@@ -8,6 +8,24 @@
   --radius-sm: 8px;
 }
 
+[data-theme='neon'] {
+  --void: #090B12;
+  --surface: #111420;
+  --surface-2: #181C2E;
+  --mist: #232840;
+  --mist-2: #2D3350;
+  --ecto: #7FE8D0;
+  --ecto-dim: rgba(127,232,208,0.15);
+  --alert: #A855F7;
+  --alert-dim: rgba(168,85,247,0.15);
+  --aviso: #E8B563;
+  --aviso-dim: rgba(232,181,99,0.15);
+  --violet: #8B5CF6;
+  --violet-dim: rgba(139,92,246,0.15);
+  --ink: #EDEFF7;
+  --ink-dim: #7B80A0;
+}
+
 /* ── Modo Escuro ─────────────────────────────── */
 [data-theme='dark'] {
   --void:       #181D1C;
