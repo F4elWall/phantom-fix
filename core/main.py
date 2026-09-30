@@ -1050,10 +1050,11 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
             await asyncio.sleep(1)
             return await solicitar_correcao(vuln, cliente)
 
-    async with httpx.AsyncClient() as cliente:
-        tarefas   = [com_semaforo(v, cliente) for v in vulnerabilidades]
-        correcoes = await asyncio.gather(*tarefas)
-
+    with httpx.Client(timeout=30) as c:
+        c.post(
+            f"{SPIRIT_URL}/indexar",
+            json={"user_id": user_id, "protocolo": protocolo},
+        )
     for vuln, correcao in zip(vulnerabilidades, correcoes):
         vuln.update(correcao)
 
