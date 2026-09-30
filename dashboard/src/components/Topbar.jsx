@@ -85,6 +85,12 @@ export default function Topbar({
   // --- [MODIFICAÇÃO]: Uso do hook de tema ---
   const { tema, toggleTema } = useTheme();
 
+  const TEMA_LABEL = {
+  neon:  "◈ Neon",
+  dark:  "◉ Dark",
+  light: "○ Light",
+  };
+
   // Fecha dropdown ao clicar fora
   useEffect(() => {
     function handleClick(e) {
