@@ -54,6 +54,14 @@ def inicializar_banco():
                 criado_em   TEXT    NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             );
+
+            CREATE TABLE IF NOT EXISTS reset_senha (
+                token      TEXT    PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                expira_em  TEXT    NOT NULL,
+                usado      INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES usuarios(id)
+            );
         """)
 
 
@@ -254,6 +262,63 @@ def atualizar_projeto(
             (novo_nome, novo_ctx, novo_gh, projeto_id),
         )
     return buscar_projeto(projeto_id)
+
+
+# ── Reset de senha ────────────────────────────────────────────────────────────
+
+def criar_token_reset(user_id: int) -> str:
+    """Gera um token de reset válido por 30 minutos. Invalida tokens anteriores do mesmo usuário."""
+    from datetime import timedelta
+    token = secrets.token_urlsafe(32)
+    expira = (datetime.now() + timedelta(minutes=30)).isoformat()
+    with _conexao() as conn:
+        # Invalida tokens anteriores não usados
+        conn.execute(
+            "UPDATE reset_senha SET usado = 1 WHERE user_id = ? AND usado = 0",
+            (user_id,),
+        )
+        conn.execute(
+            "INSERT INTO reset_senha (token, user_id, expira_em, usado) VALUES (?, ?, ?, 0)",
+            (token, user_id, expira),
+        )
+    return token
+
+
+def validar_token_reset(token: str) -> dict | None:
+    """Retorna o usuário se o token for válido e não expirado. Senão, None."""
+    with _conexao() as conn:
+        row = conn.execute(
+            """
+            SELECT u.*, r.expira_em FROM reset_senha r
+            JOIN usuarios u ON u.id = r.user_id
+            WHERE r.token = ? AND r.usado = 0
+            """,
+            (token,),
+        ).fetchone()
+    if not row:
+        return None
+    row = dict(row)
+    if datetime.fromisoformat(row["expira_em"]) < datetime.now():
+        return None
+    return row
+
+
+def consumir_token_reset(token: str, nova_senha: str) -> bool:
+    """Troca a senha e marca o token como usado. Retorna True se bem-sucedido."""
+    usuario = validar_token_reset(token)
+    if not usuario:
+        return False
+    novo_hash = _hash_senha(nova_senha)
+    with _conexao() as conn:
+        conn.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (novo_hash, usuario["id"]),
+        )
+        conn.execute(
+            "UPDATE reset_senha SET usado = 1 WHERE token = ?",
+            (token,),
+        )
+    return True
 
 
 def _projeto_dict(row) -> dict:
