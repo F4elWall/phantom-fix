@@ -11,6 +11,7 @@ import SpiritChat from "./components/SpiritChat";
 import PipelineView from "./components/PipelineView";
 import HistoricoView from "./components/HistoricoView";
 import RelatorioExecutivoView from "./components/RelatorioExecutivoView";
+import RecuperarSenha from "./components/RecuperarSenha";
 import "./App.css";
 import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./api";
 
@@ -35,7 +36,13 @@ function sessaoSalva() {
   return !!localStorage.getItem("session_token");
 }
 
+function lerResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("reset_token") || null;
+}
+
 export default function App() {
+  const [resetToken] = useState(lerResetToken);
   // --- [MODIFICAÇÃO]: Estado para o tema ---
   const [tema, setTema] = useState(localStorage.getItem("theme") || "neon");
 
@@ -60,6 +67,7 @@ export default function App() {
   } : null;
 
   const [tela, setTela] = useState(
+    resetToken ? "recuperar_senha" :
     !dadosSalvos ? "landing" :
     !dadosSalvos.client_linked ? "welcome" : "home"
   );
@@ -207,6 +215,15 @@ export default function App() {
           onLogin={onLogin}
           onIrParaSignup={() => setTela("signup")}
           onVoltar={() => setTela("landing")}
+          onEsqueciSenha={() => setTela("recuperar_senha")}
+        />
+      )}
+
+      {tela === "recuperar_senha" && (
+        <RecuperarSenha
+          resetToken={resetToken}
+          onVoltar={() => setTela("auth")}
+          onSucesso={() => setTela("auth")}
         />
       )}
 
