@@ -473,6 +473,91 @@ def enviar_email_conclusao(
     except Exception as e:
         print(f"  ⚠ Falha ao enviar e-mail: {e}")
 
+def enviar_email_reset(email_destino: str, nome_usuario: str, token_reset: str):
+    """Envia e-mail com link de recuperação de senha."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        print("  ⚠ GMAIL_USER / GMAIL_APP_PASSWORD não configurados — e-mail de reset não enviado")
+        return
+
+    link = f"{DASHBOARD_URL}?reset_token={token_reset}"
+
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0B0F19;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0B0F19;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#111827;border-radius:12px;border:1px solid #1F2937;overflow:hidden;">
+
+        <tr>
+          <td style="padding:40px 40px 24px;text-align:center;">
+            <p style="margin:0 0 8px;font-size:36px">👻</p>
+            <h1 style="margin:0 0 6px;color:#F9FAFB;font-size:22px;font-weight:700">Recuperar senha</h1>
+            <p style="margin:0;color:#9CA3AF;font-size:14px">PhantomFix · ASPM com IA</p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:0 40px 32px;">
+            <p style="margin:0 0 16px;color:#D1D5DB;font-size:15px;line-height:1.6">
+              Olá, <strong style="color:#F9FAFB">{nome_usuario}</strong>.
+              Recebemos uma solicitação para redefinir a senha da sua conta.
+            </p>
+            <p style="margin:0;color:#D1D5DB;font-size:15px;line-height:1.6">
+              Clique no botão abaixo para criar uma nova senha.
+              Este link é válido por <strong style="color:#F9FAFB">30 minutos</strong>.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:0 40px 32px;text-align:center;">
+            <a href="{link}"
+               style="display:inline-block;background:#6366F1;color:#ffffff;text-decoration:none;
+                      font-size:15px;font-weight:700;padding:14px 40px;border-radius:8px;">
+              Redefinir senha →
+            </a>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:0 40px 32px;">
+            <p style="margin:0;color:#6B7280;font-size:13px;line-height:1.6">
+              Se você não solicitou a recuperação de senha, ignore este e-mail.
+              Sua senha permanece a mesma.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="background:#0B0F19;padding:20px 40px;text-align:center;border-top:1px solid #1F2937;">
+            <p style="margin:0;color:#4B5563;font-size:12px">
+              👻 PhantomFix · Gerado automaticamente · Não responda este e-mail
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    msg = MIMEMultipart()
+    msg["From"]    = f"{EMAIL_FROM_NAME} <{GMAIL_USER}>"
+    msg["To"]      = email_destino
+    msg["Subject"] = "[PhantomFix] Recuperação de senha"
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            smtp.sendmail(GMAIL_USER, email_destino, msg.as_string())
+        print(f"  ✓ E-mail de reset enviado para {email_destino}")
+    except Exception as e:
+        print(f"  ⚠ Falha ao enviar e-mail de reset: {e}")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ROTAS DE AUTENTICAÇÃO
 # ══════════════════════════════════════════════════════════════════════════════
@@ -567,6 +652,34 @@ def me_by_token(token: str):
     if not usuario:
         raise HTTPException(status_code=404, detail="Token não encontrado")
     return {"nome": usuario["nome"], "email": usuario["email"]}
+
+
+class SolicitarResetBody(BaseModel):
+    email: str
+
+class ConfirmarResetBody(BaseModel):
+    token: str
+    nova_senha: str
+
+@app.post("/auth/solicitar-reset")
+def solicitar_reset(body: SolicitarResetBody, background: BackgroundTasks):
+    """Envia e-mail com link de reset. Retorna sempre 200 para não vazar se e-mail existe."""
+    usuario = db.buscar_usuario_por_email(body.email.strip().lower())
+    if usuario:
+        token_reset = db.criar_token_reset(usuario["id"])
+        background.add_task(enviar_email_reset, usuario["email"], usuario["nome"], token_reset)
+    return {"ok": True, "mensagem": "Se o e-mail existir, você receberá as instruções em instantes."}
+
+
+@app.post("/auth/confirmar-reset")
+def confirmar_reset(body: ConfirmarResetBody):
+    """Valida o token e troca a senha."""
+    if not body.nova_senha or len(body.nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="A senha deve ter no mínimo 6 caracteres")
+    ok = db.consumir_token_reset(body.token.strip(), body.nova_senha)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
+    return {"ok": True, "mensagem": "Senha redefinida com sucesso."}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
