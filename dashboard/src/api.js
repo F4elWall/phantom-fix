@@ -53,6 +53,28 @@ export async function checkLink() {
   return resp.json();
 }
 
+export async function solicitarReset(email) {
+  const resp = await fetch(`${CORE_URL}/auth/solicitar-reset`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao solicitar reset");
+  return data;
+}
+
+export async function confirmarReset(token, nova_senha) {
+  const resp = await fetch(`${CORE_URL}/auth/confirmar-reset`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ token, nova_senha }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao redefinir senha");
+  return data;
+}
+
 export async function regenToken() {
   const resp = await fetch(`${CORE_URL}/auth/regen-token`, {
     method: "POST",
