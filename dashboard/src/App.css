@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+[data-theme='neon'] {
   --void: #090B12;
   --surface: #111420;
   --surface-2: #181C2E;
@@ -9,33 +17,74 @@
   --ecto: #7FE8D0;
   --ecto-dim: rgba(127,232,208,0.15);
   --alert: #A855F7;
---alert-dim: rgba(168,85,247,0.15);
+  --alert-dim: rgba(168,85,247,0.15);
   --aviso: #E8B563;
   --aviso-dim: rgba(232,181,99,0.15);
   --violet: #8B5CF6;
   --violet-dim: rgba(139,92,246,0.15);
   --ink: #EDEFF7;
   --ink-dim: #7B80A0;
-  --font-display: "Space Grotesk", sans-serif;
-  --font-body: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
-  --radius: 12px;
-  --radius-sm: 8px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Modo Escuro ─────────────────────────────── */
+[data-theme='dark'] {
+  --void:       #181D1C;
+  --surface:    rgba(255,255,255,0.06);
+  --surface-2:  rgba(255,255,255,0.03);
+  --mist:       rgba(255,255,255,0.10);
+  --mist-2:     rgba(255,255,255,0.18);
+  --ecto:       #7FE8D0;
+  --ecto-dim:   rgba(127,232,208,0.15);
+  --alert:      #EF4444;
+  --alert-dim:  rgba(239,68,68,0.15);
+  --aviso:      #E8B563;
+  --aviso-dim:  rgba(232,181,99,0.15);
+  --violet:     #8B5CF6;
+  --violet-dim: rgba(139,92,246,0.15);
+  --ink:        #EDEFF7;
+  --ink-dim:    #7B80A0;
+}
 
+/* ── Modo Claro ──────────────────────────────── */
+[data-theme='light'] {
+  --void:       #EEEEF6;
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F5FC;
+  --mist:       #E2E4EF;
+  --mist-2:     #CDD0E4;
+  --ecto:       #0D9488;
+  --ecto-dim:   rgba(13,148,136,0.1);
+  --alert:      #DC2626;
+  --alert-dim:  rgba(220,38,38,0.1);
+  --aviso:      #D97706;
+  --aviso-dim:  rgba(217,119,6,0.1);
+  --violet:     #7C3AED;
+  --violet-dim: rgba(124,58,237,0.1);
+  --ink:        #1A1535;
+  --ink-dim:    #6B7090;
+}
+
+/* ── Transição suave ao trocar de tema ───────── */
 body {
   background: var(--void);
   color: var(--ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Dark: gradientes de fundo para o glassmorphism funcionar */
+[data-theme='dark'] body {
+  background:
+    radial-gradient(ellipse at 15% 30%, rgba(127,232,208,0.09) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 70%, rgba(139,92,246,0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%,  rgba(127,232,208,0.05) 0%, transparent 40%),
+    #181D1C;
 }
 
 h1,h2,h3,h4 { font-family: var(--font-display); }
 button { font-family: var(--font-body); cursor: pointer; }
-
 /* ── Login ───────────────────────────────────── */
 .tela-login {
   min-height: 100vh;
