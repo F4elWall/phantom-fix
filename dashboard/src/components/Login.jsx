@@ -2,7 +2,7 @@ import { useState } from "react";
 import logo from "../assets/logo.png";
 import { login } from "../api";
 
-export default function Login({ onLogin, onIrParaSignup }) {
+export default function Login({ onLogin, onIrParaSignup, onEsqueciSenha }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
@@ -67,6 +67,18 @@ export default function Login({ onLogin, onIrParaSignup }) {
               required
             />
           </label>
+          {onEsqueciSenha && (
+            <p style={{ textAlign: "right", margin: "-8px 0 12px" }}>
+              <button
+                type="button"
+                className="login-link-btn"
+                style={{ fontSize: "13px" }}
+                onClick={onEsqueciSenha}
+              >
+                Esqueci minha senha
+              </button>
+            </p>
+          )}
           {erro && <p className="login-erro">{erro}</p>}
           <button type="submit" className="login-btn" disabled={carregando}>
             <span>{carregando ? "Entrando..." : "Entrar"}</span>
