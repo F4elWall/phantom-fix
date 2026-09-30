@@ -283,3 +283,56 @@ export async function buscarPostura() {
 
   return entradas.filter(Boolean);
 }
+
+// ── Projeto (Nexus) ───────────────────────────────────────────────────────────
+// Adicione estas funções ao final do api.js existente.
+
+export async function buscarProjeto() {
+  const resp = await fetch(`${CORE_URL}/projeto`, {
+    headers: authHeaders(),
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error("Core não respondeu");
+  return resp.json();
+}
+
+export async function salvarProjeto(dados) {
+  const resp = await fetch(`${CORE_URL}/projeto`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(dados),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao salvar projeto");
+  return data;
+}
+
+export async function baixarConfiguracoes() {
+  const resp = await fetch(`${CORE_URL}/projeto/configuracoes.json`, {
+    headers: authHeaders(),
+  });
+  if (!resp.ok) throw new Error("Projeto não encontrado");
+  const data = await resp.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "configuracoes_scan.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  return data;
+}
+
+export async function scanGithub({ githubToken, repositorio, clientToken }) {
+  const resp = await fetch(`${CORE_URL}/scan/github`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token: githubToken,
+      repositorio,
+      client_token: clientToken,
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || "Erro ao iniciar scan GitHub");
+  return data;
+}
