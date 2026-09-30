@@ -165,9 +165,6 @@ export async function buscarRelatorioExecutivo(protocolo) {
   return resp.json();
 }
 
-// FIX: o Core espera path param — POST /relatorio-executivo/{protocolo}/lido
-// Antes usava query param (?protocolo=X), que não batia com nenhuma rota e
-// retornava 404, impedindo o fluxo de "marcar como lido".
 export async function marcarRelatorioLido(protocolo) {
   if (!protocolo) throw new Error("Protocolo obrigatório");
   const resp = await fetch(
@@ -194,7 +191,6 @@ export async function statusVault(protocolo) {
 
 export function urlDownloadVault(protocolo) {
   const token = localStorage.getItem("session_token");
-  // Retorna URL com token para download direto
   return `${CORE_URL}/vault/${encodeURIComponent(protocolo)}/download?token=${token}`;
 }
 
@@ -221,4 +217,47 @@ export async function perguntarSpirit(pergunta, relatorio = null) {
   });
   if (!resp.ok) throw new Error("Spirit não respondeu");
   return resp.json();
+}
+
+// ── Postura ───────────────────────────────────────────────────────────────────
+
+/**
+ * Busca as últimas 10 entradas do histórico e retorna métricas calculadas
+ * por scan: score médio (PhantomScore), totais por severidade e referência
+ * às vulnerabilidades brutas (para cálculo de recorrentes).
+ * Não depende de nenhum endpoint novo — tudo derivado de listarHistorico +
+ * buscarRelatorio existentes.
+ */
+export async function buscarPostura() {
+  const historico = await listarHistorico();
+  const ultimas = historico.filter((e) => e.completo).slice(0, 10);
+
+  const entradas = await Promise.all(
+    ultimas.map(async (item) => {
+      try {
+        const rel = await buscarRelatorio(item.protocolo);
+        const vulns = rel?.vulnerabilidades || [];
+        const score =
+          vulns.length
+            ? vulns.reduce((acc, v) => acc + (Number(v.score) || 0), 0) / vulns.length
+            : 0;
+        return {
+          protocolo:    item.protocolo,
+          repositorio:  rel?.repositorio || item.repositorio || "—",
+          processado_em: rel?.processado_em || rel?.analisado_em || item.processado_em,
+          score:        parseFloat(score.toFixed(1)),
+          total:        vulns.length,
+          criticas:     vulns.filter((v) => Number(v.score) >= 9).length,
+          altas:        vulns.filter((v) => { const s = Number(v.score); return s >= 7 && s < 9; }).length,
+          medias:       vulns.filter((v) => { const s = Number(v.score); return s >= 4 && s < 7; }).length,
+          baixas:       vulns.filter((v) => Number(v.score) < 4).length,
+          vulnerabilidades: vulns,
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return entradas.filter(Boolean);
 }
