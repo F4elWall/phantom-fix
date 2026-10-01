@@ -269,15 +269,22 @@ def salvar_projeto_usuario(
             )
         else:
             projeto_id = str(uuid.uuid4())
+            colunas = ["id", "user_id", "nome", "stack", "ambiente", "dados_sensiveis",
+                       "compliance", "estagio", "objetivo", "zap_url", "atualizado_em"]
+            valores = [projeto_id, user_id, nome, stack, ambiente, dados_sensiveis,
+                       compliance, estagio, objetivo, zap_url, agora]
+
+            # Bancos criados antes da v2 têm criado_em TEXT NOT NULL (SQLite não
+            # permite remover o NOT NULL). Preenche quando a coluna existir.
+            existentes = {r[1] for r in conn.execute("PRAGMA table_info(projetos)").fetchall()}
+            if "criado_em" in existentes:
+                colunas.append("criado_em")
+                valores.append(agora)
+
+            placeholders = ", ".join("?" for _ in colunas)
             conn.execute(
-                """
-                INSERT INTO projetos
-                    (id, user_id, nome, stack, ambiente, dados_sensiveis,
-                     compliance, estagio, objetivo, zap_url, atualizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (projeto_id, user_id, nome, stack, ambiente, dados_sensiveis,
-                 compliance, estagio, objetivo, zap_url, agora),
+                f"INSERT INTO projetos ({', '.join(colunas)}) VALUES ({placeholders})",
+                valores,
             )
 
     return buscar_projeto_usuario(user_id)
