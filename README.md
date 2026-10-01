@@ -14,113 +14,204 @@ PhantomFix é uma plataforma ASPM *(Application Security Posture Management)* co
 
 ## 🧩 O Problema
 
-Ferramentas de segurança tradicionais costumam geram centenas de alertas a cada análise. Sem uma boa priorização, o desenvolvedor não sabe por onde começar, e o que realmente importa se perde no ruído.
+Ferramentas de segurança tradicionais costumam gerar centenas de alertas a cada análise. Sem uma boa priorização, o desenvolvedor não sabe por onde começar, e o que realmente importa se perde no ruído.
 
-O PhantomFix resolve isso combinando análise estática (SAST) e dinâmica (DAST) com inteligência artificial para **priorizar**, **contextualizar** e **gerar correções automáticas** das vulnerabilidades que mais ameaçam a aplicação ou o sistema.
+O PhantomFix resolve isso combinando **onze ferramentas** de análise (SAST, DAST, SCA, segredos, IaC e mais) com inteligência artificial para **correlacionar**, **priorizar**, **contextualizar** e **gerar correções automáticas** das vulnerabilidades que mais ameaçam a aplicação.
 
-Além disso, em nossas pesquisas sentimos falta de um "algo a mais", que fosse além de um espaço para ver problemas, mas onde pudesse ver claramente o significado dessas falhas. Foi o que nos inspirou a desenvolver um chatbot, capaz de se alimentar do contexto destas ferramentas para quantificar o grau das ameaças e ajudar na tomada de decisões.
+Além disso, sentimos falta de um "algo a mais": não só um lugar para ver problemas, mas onde se pudesse entender o significado dessas falhas para o seu negócio. Por isso o PhantomFix tem o **Spirit**, um assistente que se alimenta do contexto do seu projeto, dos resultados das ferramentas e da legislação para quantificar o grau das ameaças e apoiar a tomada de decisão.
 
 ---
 
 ## ✨ Funcionalidades
 
-- 🔍 **Análise SAST** com Semgrep — detecta vulnerabilidades no código-fonte
-- 🌐 **Análise DAST** com OWASP ZAP — testa a aplicação em tempo de execução
-- 🔑 **Secrets Scanning** com Gitleaks — encontra credenciais e tokens expostos no repositório
-- 📦 **SCA / Análise de Dependências** com Trivy — identifica vulnerabilidades em bibliotecas e dependências
-- 🤖 **Priorização com IA** — um agente ranqueia as vulnerabilidades por criticidade real, correlacionando os resultados de todas as ferramentas
-- 🛠️ **Correções automáticas (Ghost)** — gera patches de código, pronto para utilizar.
-- ⚖️ **Compliance com Spirit AI** — analisa impacto na LGPD, ISO 27001 e NIST via chatbot
+### Análise
+- 🔍 **SAST** com Semgrep — vulnerabilidades no código-fonte
+- 🌐 **DAST** com OWASP ZAP e **Nuclei** — testes na aplicação em execução (CVEs e misconfigurações)
+- 🔑 **Segredos** com Gitleaks e TruffleHog (com validação ativa das credenciais)
+- 📦 **SCA** com Trivy, Syft (SBOM) e Grype — vulnerabilidades em dependências
+- 🏗️ **IaC e contêineres** com Checkov e Hadolint
+- 📑 **Schemas de API** com Spectral
+
+### Priorização
+- 🧹 **Normalização** — remove ruído e funde duplicatas entre ferramentas
+- 🔗 **Correlação** — Trivy × imports reais no código (dependência usada de fato vs. só no lockfile) e Semgrep × ZAP (mesmo tipo e localização)
+- 📈 **Enriquecimento** com NVD (CVSS), EPSS (probabilidade de exploração) e CISA KEV (exploração ativa confirmada)
+- 🕸️ **Grafo de ataque** — conecta achados de origens diferentes (por exemplo, um segredo exposto e uma injeção no mesmo módulo) e identifica caminhos de ataque
+- 👻 **PhantomScore** — pontuação de 0 a 10 que combina CVSS (40%), EPSS (20%), KEV (15%) e alcançabilidade no grafo (25%)
+- 🤖 **Análise por IA** — cada vulnerabilidade é analisada considerando o contexto do projeto
+
+### Correção e contexto
+- 🛠️ **Ghost** — gera patches de código prontos para uso
+- 🧭 **Nexus** — cadastro do contexto do projeto (stack, ambiente, dados sensíveis, compliance, estágio, objetivo e URL para DAST) que calibra a análise
+- ⚖️ **Spirit AI** — chatbot com RAG sobre LGPD, ISO 27001 e NIST CSF, além dos resultados e da postura do seu projeto
+- 🗃️ **Vault Obsidian** — um cofre de notas por projeto, acumulado entre scans, com uma nota por vulnerabilidade, para baixar e navegar no Obsidian
+
+### Plataforma
+- 🐙 **Scan direto de repositório GitHub** — informe a URL do repositório, sem precisar enviar arquivos
+- 🖥️ **Client desktop** — executável Windows para envio seguro de repositórios locais
 - 👤 **Autenticação multi-tenant** — cada usuário vê apenas seus próprios scans
-- 🖥️ **Client desktop** — executável Windows para envio seguro de repositórios
-- 📊 **Dashboard completo** — score de segurança, histórico de scans e filtros por severidade
-- 📧 **Notificação por e-mail** — relatório em PDF enviado automaticamente ao fim de cada análise
+- 📊 **Dashboard** — acompanhamento do pipeline, resultados com filtros por severidade, histórico, **postura** do projeto ao longo do tempo e chat com o Spirit
+- 📝 **Relatório executivo** — gerado pelo Spirit, em tela e em PDF
+- 📧 **Notificação por e-mail** — relatório em PDF enviado ao fim de cada análise
 
 ---
 
 ## 🚀 Como Usar
 
-> Não é necessária nenhuma instalação, e demanda pouquíssima configuração. O PhantomFix é acessado pelo navegador.
+> O PhantomFix é acessado pelo navegador e demanda pouquíssima configuração.
 
 ### 1. Crie sua conta
 Acesse [phantom-fix.vercel.app](https://phantom-fix-f4elwalls-projects.vercel.app) e clique em **Criar conta**. Preencha nome, e-mail e senha.
 
-### 2. Copie seu token único
-Após criar a conta, seu token exclusivo será exibido **uma única vez**. Guarde-o — ele vincula o Client Desktop à sua conta.
+### 2. Descreva seu projeto (Nexus)
+Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisitos de compliance, estágio e objetivo. Se quiser análise dinâmica, informe também a **URL da aplicação**. Esse contexto faz a IA priorizar do jeito certo para o seu caso.
 
-### 3. Baixe o Client
-Clique em **Download PhantomFix Client** e execute o arquivo `.exe` no Windows.
+### 3. Escolha como enviar o código
+
+**Opção A: repositório GitHub.** Cole a URL do repositório (`https://github.com/usuario/repositorio`) e inicie a análise. Para repositórios privados, informe um token de acesso.
+
+**Opção B: Client desktop (Windows).**
+1. Copie o **token único** exibido após criar a conta. Ele aparece **uma única vez**.
+2. Clique em **Download PhantomFix Client** e execute o `.exe`.
+3. Cole o token e clique em **Vincular conta**.
+4. Selecione a pasta do projeto e clique em **Iniciar Análise**.
 
 > **⚠️ Aviso de segurança**
 >
-> O PhantomFix é um projeto acadêmico e o executável **não possui assinatura digital (Code Signing Certificate)**. Por isso, o Windows, o Microsoft Defender SmartScreen ou o navegador podem exibir um aviso de segurança durante o download ou na primeira execução.
->
-> Se você baixou o arquivo diretamente deste repositório ou do site oficial do projeto, esse comportamento é esperado. Basta confirmar a execução quando o Windows solicitar.
+> O PhantomFix é um projeto acadêmico e o executável **não possui assinatura digital (Code Signing Certificate)**. Por isso, o Windows, o Microsoft Defender SmartScreen ou o navegador podem exibir um aviso durante o download ou na primeira execução. Se você baixou o arquivo diretamente deste repositório ou do site oficial do projeto, esse comportamento é esperado.
 
-Ao abrir o Client, cole seu token e clique em **Vincular conta**.
-
-### 4. Volte ao Dashboard
-Com o client vinculado, clique em **Token vinculado — Acessar Dashboard** e você estará pronto para analisar.
-
-### 5. Envie um repositório
-No Client desktop, selecione a pasta do seu projeto e clique em **Iniciar Análise**. O Dashboard atualizará automaticamente com os resultados.
+### 4. Acompanhe e aja
+O Dashboard mostra o andamento do pipeline e, ao final, os resultados ordenados por PhantomScore, as correções sugeridas pelo Ghost, o relatório executivo e o vault para download. Converse com o Spirit para entender o impacto de cada falha.
 
 ---
 
 ## 🏗️ Arquitetura
 
 ```
-┌─────────────┐     token+zip      ┌──────────────────────────────────────────┐
-│   Client    │ ─────────────────► │                  Core                    │
-│  (Windows)  │                    │  FastAPI · SQLite · Multi-tenant         │
-└─────────────┘                    └────────┬─────────────┬────────────────────┘
-                                            │             │
-                               ┌────────────▼──┐   ┌──────▼──────────┐
-                               │  Data Control │   │     Analyser    │
-                               │  Semgrep+ZAP  │   │ Ollama (LLaMA)  │
-                               │  Gitleaks     │   └──────┬──────────┘
-                               │  Trivy        │          │
-                               └───────────────┘   ┌──────▼──────────┐
-                                                   │      Ghost      │
-                                                   │  Correções IA   │
-                                                   └─────────────────┘
+┌─────────────┐   token + zip    ┌───────────────────────────────────────────┐
+│   Client    │ ───────────────► │                   Core                    │
+│  (Windows)  │                  │  FastAPI · SQLite · Multi-tenant · Nexus  │
+└─────────────┘                  └──┬──────────┬──────────┬──────────┬───────┘
+ URL do GitHub ────────────────────►│          │          │          │
+                                    │          │          │          │
+                      ┌─────────────▼──┐  ┌────▼─────────┐│   ┌──────▼───────┐
+                      │  Data Control  │  │   Analyser   ││   │    Vault     │
+                      │ 11 ferramentas │  │ normaliza    ││   │   Obsidian   │
+                      │ SAST/DAST/SCA  │  │ correlaciona ││   └──────────────┘
+                      │ Secrets · IaC  │  │ NVD·EPSS·KEV ││
+                      └────────────────┘  │ análise IA   ││
+                                          └────┬─────────┘│
+                                               │          │
+                                         ┌─────▼──────┐   │
+                                         │   Grafo    │   │
+                                         │ PhantomScore│  │
+                                         └─────┬──────┘   │
+                                               │          │
+                                         ┌─────▼──────┐ ┌─▼────────────────┐
+                                         │   Ghost    │ │     Spirit AI    │
+                                         │ Correções  │ │ RAG · ChromaDB   │
+                                         └────────────┘ │ LGPD·ISO·NIST    │
+                                                        └──────────────────┘
 
-┌─────────────────────────────────────────────────────────────┐
-│                     Dashboard (React)                       │
-│  Landing · Auth · Welcome · Results · Histórico · Spirit   │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                        Spirit AI                            │
-│         FastAPI · Groq · LGPD · ISO 27001 · NIST           │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                           Dashboard (React)                               │
+│ Landing · Auth · Projeto (Nexus) · Pipeline · Resultados · Histórico ·    │
+│ Postura · Relatório executivo · Vault · Spirit                            │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Fluxo do pipeline
+
+1. **Recebimento:** zip enviado pelo Client ou clone do repositório GitHub, com o contexto lido do Nexus
+2. **Scanner** (`data-control`): executa as ferramentas de análise
+3. **Analyser:** normaliza, correlaciona, enriquece com NVD/EPSS/KEV e analisa com IA
+4. **Grafo:** correlaciona achados entre ferramentas, monta os caminhos de ataque e calcula o PhantomScore
+5. **Ghost:** gera correções, começando pelas vulnerabilidades mais críticas
+6. **Spirit:** gera o relatório executivo e indexa os resultados para o chat
+7. **Vault e e-mail:** atualiza o vault Obsidian e envia o relatório em PDF
+
+### Serviços
 
 | Serviço | Descrição | Porta padrão |
 |---|---|---|
-| **Core** | API central, auth, pipeline, multi-tenancy | 8000 |
-| **Data Control** | Scanner SAST (Semgrep) + DAST (ZAP) + Secrets (Gitleaks) + SCA (Trivy) | — |
-| **Analyser** | Correlação entre ferramentas + enriquecimento e priorização com IA (Ollama Cloud) | — |
+| **Core** | API central, autenticação, pipeline, Nexus, multi-tenancy | 8000 |
+| **Spirit** | Assistente de compliance e relatório executivo (RAG com ChromaDB) | 8001 |
 | **Ghost** | Geração de correções automáticas | 8002 |
-| **Spirit** | Assistente de compliance via chatbot | 8001 |
-| **Dashboard** | Interface web React | 5173 |
+| **OWASP ZAP** | Daemon do DAST, usado pelo scanner | 8080 |
+| **Dashboard** | Interface web React (Vite, em desenvolvimento) | 5173 |
+| **Data Control / Analyser / Grafo / Vault** | Módulos executados pelo Core | — |
 | **Client** | Executável desktop Windows | — |
 
+Os modelos de linguagem rodam no **Ollama Cloud** e podem ser trocados por variável de ambiente, de forma independente para cada serviço.
+
 ---
-### Estrutura do projeto
+
+## 🛠️ Executando por conta própria
+
+Requer uma VM Ubuntu/Debian.
+
+```bash
+git clone https://github.com/F4elWall/phantom-fix.git
+cd phantom-fix
+chmod +x setup.sh && ./setup.sh     # instala scanners, dependências e venvs
+```
+
+Defina as chaves antes de subir os serviços:
+
+```bash
+export OLLAMA_ANALYSER_KEY="..."
+export OLLAMA_GHOST_KEY="..."
+export OLLAMA_SPIRIT_KEY="..."
+```
+
+Em seguida:
+
+```bash
+./start-all.sh      # sobe ZAP, Spirit, Ghost e Core, com logs unificados
+```
+
+### Principais variáveis de ambiente
+
+| Variável | Uso |
+|---|---|
+| `OLLAMA_ANALYSER_KEY` / `OLLAMA_GHOST_KEY` / `OLLAMA_SPIRIT_KEY` | Chaves do Ollama Cloud de cada serviço |
+| `OLLAMA_MODEL` / `GHOST_MODEL` / `SPIRIT_MODEL` | Modelo usado por Analyser, Ghost e Spirit |
+| `EMBED_MODEL` | Modelo de embeddings do Spirit (padrão `all-MiniLM-L6-v2`) |
+| `NVD_API_KEY` | Opcional; acelera as consultas ao NVD |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Envio do relatório por e-mail |
+| `ZAP_API_URL` / `ZAP_TIMEOUT` | Endereço do ZAP e limite de tempo do DAST |
+| `SCANNER_TIMEOUT` | Limite de tempo total do scanner |
+| `RESULTADOS_DIR` / `JOBS_DIR` | Onde ficam resultados e repositórios temporários |
+| `VITE_CORE_URL` / `VITE_SPIRIT_URL` | Endereços das APIs usados pelo Dashboard |
+
+Para rodar o Dashboard localmente:
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+> **Segurança:** nunca versione chaves de API nem tokens. Use variáveis de ambiente ou um gerenciador de segredos.
+
+---
+
+## 📁 Estrutura do projeto
 
 ```
 phantom-fix/
-├── core/               # API central e pipeline
-├── analyser/           # Enriquecimento com IA
+├── core/               # API central, pipeline, grafo de ataque e postura
+├── analyser/           # Normalização, correlação e enriquecimento com IA
 ├── ghost/              # Geração de correções
-├── spirit/             # Assistente de compliance
+├── spirit/             # Assistente de compliance (RAG)
 │   └── legislacao/     # PDFs de referência (LGPD, ISO 27001, NIST CSF)
-├── data-control/       # Scanner SAST + DAST + Secrets + SCA
-├── database/           # SQLite e lógica de auth
-├── client/             # Executável desktop
+├── data-control/       # Scanner (11 ferramentas) e agente desktop
+├── vault/              # Gerador do vault Obsidian
+├── database/           # SQLite, autenticação e projetos (Nexus)
+├── client/             # Client desktop
 ├── dashboard/          # Interface web React
-└── resultados/         # Relatórios por usuário
+├── setup.sh            # Instalação completa em uma VM nova
+└── start-all.sh        # Sobe todos os serviços
 ```
 
 ---
@@ -133,19 +224,11 @@ Desenvolvido para o projeto Challenge, em parceria com a Pride e a FIAP
 |------------------- |-----------|--------------------------------------------------|
 | Rafael Pedro       | RM 573656 | [@F4elWall](https://github.com/F4elWall)         |
 | Bernardo Coroa     | RM 569261 | [@beracoroa](https://github.com/beracoroa)       |
-| Rafael Toschi      | RM 569258 | [@Rafatoschi](https://github.com/Rafatoschi)     |
 | Giovanna Esmelardi | RM 569667 | [@Giovana-gigi](https://github.com/Giovana-gigi) |
 | Gustavo Enrique    | RM 571529 |                                                  |
-
 
 ---
 
 ## 📄 Licença
 
 Este projeto foi desenvolvido para fins acadêmicos.
-
----
-
-<div align="center">
-
-</div>
