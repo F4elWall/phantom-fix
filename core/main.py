@@ -939,18 +939,39 @@ def pipeline_completo(
     pasta_resultado.mkdir(parents=True, exist_ok=True)
 
     try:
-        # ── 2. Padroniza contexto do projeto ──────────────────────────────────
+        # ── 2. Contexto do projeto ────────────────────────────────────────────
+        # Prioridade 1: configuracoes_scan.json dentro do zip (enviado pelo Client)
+        # Prioridade 2: projeto salvo no banco pelo Nexus (formulário do dashboard)
+        # Prioridade 3: textarea livre processado por LLM (fallback legado)
         contexto_padronizado = None
-        if contexto_projeto and contexto_projeto.strip():
+ 
+        config_path = pasta_extraida / "configuracoes_scan.json"
+        if config_path.exists():
+            try:
+                contexto_padronizado = json.loads(config_path.read_text(encoding="utf-8"))
+                print(f"[{protocolo}] Contexto lido do configuracoes_scan.json (zip)")
+            except Exception as e:
+                print(f"[{protocolo}] ⚠ Falha ao ler configuracoes_scan.json: {e}")
+ 
+        if contexto_padronizado is None:
+            ctx_db = db.projeto_como_contexto(user_id)
+            if ctx_db:
+                contexto_padronizado = ctx_db
+                print(f"[{protocolo}] Contexto lido do banco (Nexus)")
+ 
+        if contexto_padronizado is None and contexto_projeto and contexto_projeto.strip():
             _status_jobs[protocolo]["status"] = "processando_contexto"
-            print(f"[{protocolo}] Padronizando contexto do projeto...")
+            print(f"[{protocolo}] Padronizando contexto livre por LLM...")
             contexto_padronizado = padronizar_contexto_projeto(contexto_projeto.strip())
             print(f"[{protocolo}] Contexto: {contexto_padronizado}")
+ 
+        if contexto_padronizado is not None:
             ctx_path = pasta_resultado / "contexto_projeto.json"
             ctx_path.write_text(
                 json.dumps(contexto_padronizado, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
+ 
 
         # ── 3. Scanner ───────────────────────────────────────────────────────
         _status_jobs[protocolo]["status"] = "escaneando"
