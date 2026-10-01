@@ -394,7 +394,7 @@ async def gerar_recomendacao_proativa(user_id: int) -> str | None:
     )
 
     try:
-        async with httpx.AsyncClient(timeout=60) as c:
+        async with httpx.AsyncClient(timeout=300) as c:
             resp = await c.post(
                 OLLAMA_URL,
                 headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"},
@@ -404,7 +404,7 @@ async def gerar_recomendacao_proativa(user_id: int) -> str | None:
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user",   "content": prompt},
                     ],
-                    "max_tokens": 1024,
+                    "max_tokens": 4000,
                     "temperature": 0.3,
                 },
             )
