@@ -1342,3 +1342,97 @@ def status_analise(usuario: dict = Depends(usuario_autenticado)):
         "corrigido_em": resultado.get("corrigido_em"),
         "modelo_ia":    resultado.get("modelo_ia", ""),
     }
+
+class ProjetoBody(BaseModel):
+    nome:            str
+    stack:           Optional[str] = None
+    ambiente:        Optional[str] = None
+    dados_sensiveis: Optional[str] = None
+    compliance:      Optional[str] = None
+    estagio:         Optional[str] = None
+    objetivo:        Optional[str] = None
+    zap_url:         Optional[str] = None
+ 
+ 
+@app.get("/projeto")
+def get_projeto(usuario: dict = Depends(usuario_autenticado)):
+    """Retorna o projeto do usuário logado (um por usuário)."""
+    projeto = db.buscar_projeto_usuario(usuario["id"])
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Nenhum projeto cadastrado")
+    return projeto
+ 
+ 
+@app.post("/projeto")
+def salvar_projeto(body: ProjetoBody, usuario: dict = Depends(usuario_autenticado)):
+    """Cria ou atualiza o projeto do usuário (upsert por user_id)."""
+    projeto = db.salvar_projeto_usuario(
+        user_id         = usuario["id"],
+        nome            = body.nome,
+        stack           = body.stack,
+        ambiente        = body.ambiente,
+        dados_sensiveis = body.dados_sensiveis,
+        compliance      = body.compliance,
+        estagio         = body.estagio,
+        objetivo        = body.objetivo,
+        zap_url         = body.zap_url or None,
+    )
+    return projeto
+ 
+ 
+@app.get("/projeto/configuracoes.json")
+def get_configuracoes_scan(usuario: dict = Depends(usuario_autenticado)):
+    """
+    Gera e devolve o configuracoes_scan.json a partir do projeto salvo.
+    O Nexus faz download deste arquivo e empacota no zip enviado pelo instalável.
+    O Core lê este arquivo no pipeline e pula o textarea/LLM.
+    """
+    projeto = db.buscar_projeto_usuario(usuario["id"])
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Nenhum projeto cadastrado")
+ 
+    return {
+        "stack":           projeto.get("stack"),
+        "ambiente":        projeto.get("ambiente"),
+        "dados_sensiveis": projeto.get("dados_sensiveis"),
+        "compliance":      projeto.get("compliance"),
+        "estagio":         projeto.get("estagio"),
+        "objetivo":        projeto.get("objetivo"),
+        "zap_url":         projeto.get("zap_url") or None,
+    }
+ 
+ 
+# ══════════════════════════════════════════════════════════════════════════════
+# SUBSTITUIÇÃO NO pipeline_completo()
+# Troque o bloco "── 2. Padroniza contexto do projeto" pelo trecho abaixo.
+# ══════════════════════════════════════════════════════════════════════════════
+ 
+"""
+        # ── 2. Contexto do projeto ────────────────────────────────────────────
+        contexto_padronizado = None
+ 
+        # Prioridade 1: configuracoes_scan.json vindo dentro do zip
+        config_path = pasta_extraida / "configuracoes_scan.json"
+        if config_path.exists():
+            try:
+                contexto_padronizado = json.loads(config_path.read_text(encoding="utf-8"))
+                print(f"[{protocolo}] Contexto lido do configuracoes_scan.json")
+                ctx_path = pasta_resultado / "contexto_projeto.json"
+                ctx_path.write_text(
+                    json.dumps(contexto_padronizado, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            except Exception as e:
+                print(f"[{protocolo}] ⚠ Falha ao ler configuracoes_scan.json: {e}")
+ 
+        # Prioridade 2: fallback — textarea livre processado por LLM (comportamento anterior)
+        if contexto_padronizado is None and contexto_projeto and contexto_projeto.strip():
+            _status_jobs[protocolo]["status"] = "processando_contexto"
+            print(f"[{protocolo}] Padronizando contexto via LLM...")
+            contexto_padronizado = padronizar_contexto_projeto(contexto_projeto.strip())
+            ctx_path = pasta_resultado / "contexto_projeto.json"
+            ctx_path.write_text(
+                json.dumps(contexto_padronizado, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+"""
