@@ -82,6 +82,17 @@ _status_jobs: dict[str, dict] = {}
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
+def usuario_por_client_token(authorization: str = Header(None)) -> dict:
+    """Autentica o Data-Control: aceita o token de cliente (ou uma sessão válida)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    token = authorization.split(" ", 1)[1]
+    usuario = db.buscar_usuario_por_token(token) or db.buscar_sessao(token)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    return usuario
+
+
 def usuario_autenticado(authorization: str = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Não autenticado")
@@ -1118,6 +1129,17 @@ def pipeline_completo(
             salvar_resultado(user_id, protocolo, resultado)
             _status_jobs[protocolo]["vault_pronto"] = True
             print(f"[{protocolo}] Vault Obsidian gerado → {zip_vault}")
+
+            # Pede ao Spirit para reindexar o vault recém-gerado (não crítico)
+            try:
+                with httpx.Client(timeout=30) as c:
+                    c.post(
+                        f"{SPIRIT_URL}/indexar",
+                        json={"user_id": user_id, "protocolo": protocolo},
+                    )
+                print(f"[{protocolo}] Spirit: vault reindexado")
+            except Exception as e_idx:
+                print(f"[{protocolo}] ⚠ Spirit indisponível para indexar (não crítico): {e_idx}")
         except Exception as e_vault:
             print(f"[{protocolo}] ⚠ Vault Obsidian falhou (não crítico): {e_vault}")
 
@@ -1185,10 +1207,9 @@ async def processar_com_ghost(vulnerabilidades: list[dict]):
             await asyncio.sleep(1)
             return await solicitar_correcao(vuln, cliente)
 
-    with httpx.Client(timeout=30) as c:
-        c.post(
-            f"{SPIRIT_URL}/indexar",
-            json={"user_id": user_id, "protocolo": protocolo},
+    async with httpx.AsyncClient() as cliente:
+        correcoes = await asyncio.gather(
+            *[com_semaforo(v, cliente) for v in vulnerabilidades]
         )
     for vuln, correcao in zip(vulnerabilidades, correcoes):
         vuln.update(correcao)
@@ -1322,7 +1343,7 @@ def marcar_relatorio_lido(protocolo: str, usuario: dict = Depends(usuario_autent
     return {"ok": True}
 
 @app.get("/scan/pending")
-def scan_pendente(usuario: dict = Depends(usuario_autenticado)):
+def scan_pendente(usuario: dict = Depends(usuario_por_client_token)):
     """
     Consultado pelo Data-Control a cada 60s.
     Retorna se há um scan agendado para este usuário.
