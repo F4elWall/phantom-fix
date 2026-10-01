@@ -309,18 +309,21 @@ export default function App() {
         </div>
       )}
 
-      {/* --- Home: PosturaView --- */}
-      {(!relatorio || tela === "home") && !naTelaInicial &&
-        tela !== "relatorio_executivo" && tela !== "pipeline" &&
-        tela !== "historico" && tela !== "results" && tela !== "projeto" && (
-        <div className="app-shell app-shell-resultados">
-        <PosturaView
-          onRelatorioCarregado={onRelatorioCarregado}
-          onAbrirPipeline={abrirPipeline}
-          onConfigurarProjeto={abrirProjeto}
-          onSair={sair}
-        />
-      </div>
+{/* --- Home: PosturaView --- */}
+        {(!relatorio || tela === "home") && !naTelaInicial &&
+          tela !== "relatorio_executivo" && tela !== "pipeline" &&
+          tela !== "historico" && tela !== "results" && tela !== "projeto" && (
+          <div className="app-shell app-shell-resultados">
+            <PosturaView
+              onRelatorioCarregado={onRelatorioCarregado}
+              onAbrirPipeline={abrirPipeline}
+              onConfigurarProjeto={abrirProjeto}
+              onSair={sair}
+            />
+          </div>
+        )}
+
+{tela === "results" && relatorio && (
 
       {tela === "results" && relatorio && (
         <div className={dashboardClass}>
