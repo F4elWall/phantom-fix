@@ -1421,39 +1421,3 @@ def get_configuracoes_scan(usuario: dict = Depends(usuario_autenticado)):
         "objetivo":        projeto.get("objetivo"),
         "zap_url":         projeto.get("zap_url") or None,
     }
- 
- 
-# ══════════════════════════════════════════════════════════════════════════════
-# SUBSTITUIÇÃO NO pipeline_completo()
-# Troque o bloco "── 2. Padroniza contexto do projeto" pelo trecho abaixo.
-# ══════════════════════════════════════════════════════════════════════════════
- 
-"""
-        # ── 2. Contexto do projeto ────────────────────────────────────────────
-        contexto_padronizado = None
- 
-        # Prioridade 1: configuracoes_scan.json vindo dentro do zip
-        config_path = pasta_extraida / "configuracoes_scan.json"
-        if config_path.exists():
-            try:
-                contexto_padronizado = json.loads(config_path.read_text(encoding="utf-8"))
-                print(f"[{protocolo}] Contexto lido do configuracoes_scan.json")
-                ctx_path = pasta_resultado / "contexto_projeto.json"
-                ctx_path.write_text(
-                    json.dumps(contexto_padronizado, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-            except Exception as e:
-                print(f"[{protocolo}] ⚠ Falha ao ler configuracoes_scan.json: {e}")
- 
-        # Prioridade 2: fallback — textarea livre processado por LLM (comportamento anterior)
-        if contexto_padronizado is None and contexto_projeto and contexto_projeto.strip():
-            _status_jobs[protocolo]["status"] = "processando_contexto"
-            print(f"[{protocolo}] Padronizando contexto via LLM...")
-            contexto_padronizado = padronizar_contexto_projeto(contexto_projeto.strip())
-            ctx_path = pasta_resultado / "contexto_projeto.json"
-            ctx_path.write_text(
-                json.dumps(contexto_padronizado, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-"""
