@@ -12,12 +12,17 @@ import PipelineView from "./components/PipelineView";
 import HistoricoView from "./components/HistoricoView";
 import RelatorioExecutivoView from "./components/RelatorioExecutivoView";
 import RecuperarSenha from "./components/RecuperarSenha";
+import ProjetoView from "./components/ProjetoView";
 import "./App.css";
 import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./api";
 
-// --- [MODIFICAÇÃO]: Criado ThemeContext para gerenciamento de tema ---
+// --- ThemeContext ---
 const ThemeContext = createContext();
 export const useTheme = () => useContext(ThemeContext);
+
+// --- NavContext: permite que Topbar navegue sem prop drilling ---
+const NavContext = createContext();
+export const useNav = () => useContext(NavContext);
 
 /**
  * Telas possíveis:
@@ -30,6 +35,7 @@ export const useTheme = () => useContext(ThemeContext);
  *  relatorio_executivo → relatório executivo gerado pelo Spirit
  *  results          → relatório de vulnerabilidades (dashboard completo)
  *  historico        → lista de scans anteriores
+ *  projeto          → criar / editar projeto (Nexus)
  */
 
 function sessaoSalva() {
@@ -43,7 +49,6 @@ function lerResetToken() {
 
 export default function App() {
   const [resetToken] = useState(lerResetToken);
-  // --- [MODIFICAÇÃO]: Estado para o tema ---
   const [tema, setTema] = useState(localStorage.getItem("theme") || "neon");
 
   const toggleTema = () => {
@@ -54,7 +59,6 @@ export default function App() {
     });
   };
 
-  // --- [MODIFICAÇÃO]: Sincronizar tema com o atributo 'data-theme' no documento ---
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", tema);
     localStorage.setItem("theme", tema);
@@ -78,6 +82,8 @@ export default function App() {
   const [scanState, setScanState] = useState({ tipo: "concluido" });
   const [relatorioExecutivoNaoLido, setRelatorioExecutivoNaoLido] = useState(false);
   const [spiritAberto, setSpiritAberto] = useState(true);
+  // Tela anterior para voltar após editar projeto
+  const [telaAntesDoProjeto, setTelaAntesDoProjeto] = useState(null);
 
   // ── Polling de scan ativo ─────────────────────────────────────────────────
   const logado = !["auth", "signup", "welcome", "landing"].includes(tela);
@@ -94,7 +100,6 @@ export default function App() {
         if (ativo) {
           setScanState({ tipo: "rodando", protocolo: ativo.protocolo, repositorio: ativo.repositorio });
 
-          // FIX: só redireciona para o executivo se ainda não estamos nessa tela
           if (ativo.relatorio_executivo_pronto && tela !== "relatorio_executivo") {
             const exec = await buscarRelatorioExecutivo(ativo.protocolo);
             if (exec && !cancel) {
@@ -114,7 +119,6 @@ export default function App() {
     return () => { cancel = true; clearInterval(id); };
   }, [logado, tela]);
 
-  // ── Recarrega relatório quando scan conclui ───────────────────────────────
   useEffect(() => {
     if (scanState.tipo === "concluido" && tela === "results") {
       buscarRelatorio().then((rel) => {
@@ -153,15 +157,12 @@ export default function App() {
     setTela("home");
   }
 
-  // --- [MODIFICAÇÃO]: busca o executivo ao carregar relatório, igual ao pipeline ---
   async function onRelatorioCarregado(dados) {
     setRelatorio(dados);
-
     try {
       const exec = await buscarRelatorioExecutivo(dados?.protocolo);
       if (exec) setRelatorioExecutivo(exec);
     } catch { /* Spirit pode não ter gerado */ }
-
     setTela("results");
   }
 
@@ -171,12 +172,9 @@ export default function App() {
     setTela("pipeline");
   }, []);
 
-  // FIX — busca o relatório executivo no momento em que o pipeline conclui,
-  // antes de decidir para qual tela ir.
   async function onConcluidoPipeline(rel) {
     setRelatorio(rel);
     setScanState({ tipo: "concluido" });
-
     try {
       const exec = await buscarRelatorioExecutivo(rel?.protocolo);
       if (exec) {
@@ -186,7 +184,6 @@ export default function App() {
         return;
       }
     } catch { /* se Spirit falhou, segue para results normalmente */ }
-
     setTela("results");
   }
 
@@ -195,14 +192,26 @@ export default function App() {
     setTela(relatorio ? "results" : "home");
   }
 
+  function abrirProjeto() {
+    setTelaAntesDoProjeto(tela);
+    setTela("projeto");
+  }
+
+  function voltarDoProjeto() {
+    setTela(telaAntesDoProjeto || "home");
+    setTelaAntesDoProjeto(null);
+  }
+
   // ── Roteamento ────────────────────────────────────────────────────────────
   const scanStateComExecutivo = { ...scanState, relatorioExecutivoNaoLido };
   const dashboardClass = `dashboard ${spiritAberto ? "" : "spirit-recolhido"}`;
-  const telasDashboard = ["home", "results", "pipeline", "historico", "relatorio_executivo"];
   const naTelaInicial  = ["landing", "auth", "signup", "welcome"].includes(tela);
+
+  const navValue = { irParaProjeto: abrirProjeto };
 
   return (
     <ThemeContext.Provider value={{ tema, toggleTema }}>
+    <NavContext.Provider value={navValue}>
       {tela === "landing" && (
         <Landing
           onEntrar={() => setTela("auth")}
@@ -285,9 +294,25 @@ export default function App() {
         </div>
       )}
 
-      {/* --- [MODIFICAÇÃO]: Home substituída por PosturaView --- */}
+      {tela === "projeto" && (
+        <div className={dashboardClass}>
+          <ProjetoView
+            scanState={scanStateComExecutivo}
+            spiritAberto={spiritAberto}
+            onToggleSpirit={() => setSpiritAberto((v) => !v)}
+            onVerHistorico={() => setTela("historico")}
+            onAbrirPipeline={abrirPipeline}
+            onSair={sair}
+            onVoltar={voltarDoProjeto}
+          />
+          {spiritAberto && <SpiritChat relatorio={relatorio} />}
+        </div>
+      )}
+
+      {/* --- Home: PosturaView --- */}
       {(!relatorio || tela === "home") && !naTelaInicial &&
-        tela !== "relatorio_executivo" && tela !== "pipeline" && tela !== "historico" && tela !== "results" && (
+        tela !== "relatorio_executivo" && tela !== "pipeline" &&
+        tela !== "historico" && tela !== "results" && tela !== "projeto" && (
         <div className="app-shell">
           <PosturaView
             onRelatorioCarregado={onRelatorioCarregado}
@@ -312,6 +337,7 @@ export default function App() {
           {spiritAberto && <SpiritChat relatorio={relatorio} />}
         </div>
       )}
+    </NavContext.Provider>
     </ThemeContext.Provider>
   );
 }
