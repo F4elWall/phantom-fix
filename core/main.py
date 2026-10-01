@@ -35,6 +35,11 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from weasyprint import HTML
 
+from grafo import (
+    correlacionar_cross_origem, construir_grafo, calcular_phantom_score_batch,
+    exportar_grafo_json, estatisticas_grafo,
+)
+
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
 from zip_validator import validar_e_extrair_zip, ZipValidationError
@@ -1040,6 +1045,24 @@ def pipeline_completo(
             print(f"[{protocolo}] ⚠ Analyser falhou — usando findings brutos")
             achados_finais = achados
 
+        # ── 4.5. Grafo de ataque + PhantomScore (não crítico) ────────────────
+        grafo_stats = None
+        try:
+            vulnerabilidades, _suprimidos = correlacionar_cross_origem(vulnerabilidades)
+            G, reachability = construir_grafo(vulnerabilidades)
+            vulnerabilidades = calcular_phantom_score_batch(vulnerabilidades, reachability)
+            vulnerabilidades.sort(key=lambda v: v.get("phantom_score") or 0, reverse=True)
+            grafo_stats = estatisticas_grafo(G, reachability)
+            (pasta_resultado / "grafo.json").write_text(
+                json.dumps(exportar_grafo_json(G), indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            print(f"[{protocolo}] Grafo: {grafo_stats['total_nos']} nós, "
+                  f"{grafo_stats['total_arestas']} arestas, "
+                  f"{grafo_stats['caminhos_ataque']} caminhos de ataque")
+        except Exception as e:
+            print(f"[{protocolo}] ⚠ Grafo falhou (não crítico): {e}")
+
         # ── 5. Salva versão inicial do relatório ─────────────────────────────
         resultado = {
             "protocolo":             protocolo,
@@ -1058,6 +1081,7 @@ def pipeline_completo(
             "modelo_ia":             achados_finais.get("modelo_ia", ""),
             "status":                "gerando_correcoes",
             "vulnerabilidades":      vulnerabilidades,
+            "grafo": grafo_stats,
         }
         salvar_resultado(user_id, protocolo, resultado)
         _status_jobs[protocolo]["status"] = "priorizado"
