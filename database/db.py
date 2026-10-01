@@ -9,6 +9,7 @@ import sqlite3
 import secrets
 import os
 import uuid
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -46,12 +47,17 @@ def inicializar_banco():
             );
 
             CREATE TABLE IF NOT EXISTS projetos (
-                id          TEXT PRIMARY KEY,
-                user_id     INTEGER NOT NULL,
-                nome        TEXT    NOT NULL,
-                contexto    TEXT,
-                github_url  TEXT,
-                criado_em   TEXT    NOT NULL,
+                id              TEXT    PRIMARY KEY,
+                user_id         INTEGER NOT NULL UNIQUE,
+                nome            TEXT    NOT NULL,
+                stack           TEXT,
+                ambiente        TEXT,
+                dados_sensiveis TEXT,
+                compliance      TEXT,
+                estagio         TEXT,
+                objetivo        TEXT,
+                zap_url         TEXT,
+                atualizado_em   TEXT    NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             );
 
@@ -63,6 +69,31 @@ def inicializar_banco():
                 FOREIGN KEY (user_id) REFERENCES usuarios(id)
             );
         """)
+
+    # Migração: adiciona colunas novas se o banco já existia com o schema antigo
+    _migrar_projetos()
+
+
+def _migrar_projetos():
+    """Adiciona colunas do Nexus em bancos criados antes da v2 do schema."""
+    novas_colunas = [
+        ("stack",           "TEXT"),
+        ("ambiente",        "TEXT"),
+        ("dados_sensiveis", "TEXT"),
+        ("compliance",      "TEXT"),
+        ("estagio",         "TEXT"),
+        ("objetivo",        "TEXT"),
+        ("zap_url",         "TEXT"),
+        ("atualizado_em",   "TEXT"),
+    ]
+    with _conexao() as conn:
+        existentes = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(projetos)").fetchall()
+        }
+        for coluna, tipo in novas_colunas:
+            if coluna not in existentes:
+                conn.execute(f"ALTER TABLE projetos ADD COLUMN {coluna} {tipo}")
 
 
 # ── Helpers de senha (bcrypt) ─────────────────────────────────────────────────
@@ -76,7 +107,6 @@ def _verificar_hash(senha: str, senha_hash: str) -> bool:
     try:
         if senha_hash.startswith("$2"):  # bcrypt
             return bcrypt.checkpw(senha.encode(), senha_hash.encode())
-        # legado SHA-256 — compara e sinaliza para rehash no login
         import hashlib
         return senha_hash == hashlib.sha256(senha.encode()).hexdigest()
     except Exception:
@@ -130,7 +160,6 @@ def verificar_senha(email: str, senha: str) -> dict | None:
         return None
     if not _verificar_hash(senha, usuario["senha_hash"]):
         return None
-    # Upgrade de hash legado
     if not usuario["senha_hash"].startswith("$2"):
         novo_hash = _hash_senha(senha)
         with _conexao() as conn:
@@ -198,7 +227,82 @@ def deletar_sessao(session_token: str):
         conn.execute("DELETE FROM sessoes WHERE session_token = ?", (session_token,))
 
 
-# ── Projetos ──────────────────────────────────────────────────────────────────
+# ── Projetos (Nexus) ──────────────────────────────────────────────────────────
+
+def buscar_projeto_usuario(user_id: int) -> dict | None:
+    """Retorna o projeto do usuário (um por usuário)."""
+    with _conexao() as conn:
+        row = conn.execute(
+            "SELECT * FROM projetos WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def salvar_projeto_usuario(
+    user_id: int,
+    nome: str,
+    stack: str | None = None,
+    ambiente: str | None = None,
+    dados_sensiveis: str | None = None,
+    compliance: str | None = None,
+    estagio: str | None = None,
+    objetivo: str | None = None,
+    zap_url: str | None = None,
+) -> dict:
+    """Cria ou atualiza o projeto do usuário (upsert por user_id)."""
+    agora = datetime.now().isoformat()
+    existente = buscar_projeto_usuario(user_id)
+
+    with _conexao() as conn:
+        if existente:
+            conn.execute(
+                """
+                UPDATE projetos
+                SET nome = ?, stack = ?, ambiente = ?, dados_sensiveis = ?,
+                    compliance = ?, estagio = ?, objetivo = ?, zap_url = ?,
+                    atualizado_em = ?
+                WHERE user_id = ?
+                """,
+                (nome, stack, ambiente, dados_sensiveis,
+                 compliance, estagio, objetivo, zap_url,
+                 agora, user_id),
+            )
+        else:
+            projeto_id = str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO projetos
+                    (id, user_id, nome, stack, ambiente, dados_sensiveis,
+                     compliance, estagio, objetivo, zap_url, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (projeto_id, user_id, nome, stack, ambiente, dados_sensiveis,
+                 compliance, estagio, objetivo, zap_url, agora),
+            )
+
+    return buscar_projeto_usuario(user_id)
+
+
+def projeto_como_contexto(user_id: int) -> dict | None:
+    """
+    Retorna o projeto formatado como contexto para o pipeline.
+    Retorna None se nenhum projeto estiver cadastrado.
+    """
+    projeto = buscar_projeto_usuario(user_id)
+    if not projeto:
+        return None
+    return {
+        "stack":           projeto.get("stack"),
+        "ambiente":        projeto.get("ambiente"),
+        "dados_sensiveis": projeto.get("dados_sensiveis"),
+        "compliance":      projeto.get("compliance"),
+        "estagio":         projeto.get("estagio"),
+        "objetivo":        projeto.get("objetivo"),
+        "zap_url":         projeto.get("zap_url") or None,
+    }
+
+
+# ── Projetos (funções legadas — mantidas por compatibilidade) ─────────────────
 
 def criar_projeto(
     user_id: int,
@@ -206,30 +310,12 @@ def criar_projeto(
     contexto: dict | str | None = None,
     github_url: str | None = None,
 ) -> dict:
-    projeto_id = str(uuid.uuid4())
-    agora = datetime.now().isoformat()
-    import json
-    contexto_str = None
-    if contexto is not None:
-        contexto_str = contexto if isinstance(contexto, str) else json.dumps(contexto, ensure_ascii=False)
-    with _conexao() as conn:
-        conn.execute(
-            """
-            INSERT INTO projetos (id, user_id, nome, contexto, github_url, criado_em)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (projeto_id, user_id, nome, contexto_str, github_url, agora),
-        )
-    return buscar_projeto(projeto_id)
+    return salvar_projeto_usuario(user_id=user_id, nome=nome)
 
 
 def listar_projetos(user_id: int) -> list[dict]:
-    with _conexao() as conn:
-        rows = conn.execute(
-            "SELECT * FROM projetos WHERE user_id = ? ORDER BY criado_em DESC",
-            (user_id,),
-        ).fetchall()
-    return [_projeto_dict(r) for r in rows]
+    p = buscar_projeto_usuario(user_id)
+    return [p] if p else []
 
 
 def buscar_projeto(projeto_id: str) -> dict | None:
@@ -237,42 +323,17 @@ def buscar_projeto(projeto_id: str) -> dict | None:
         row = conn.execute(
             "SELECT * FROM projetos WHERE id = ?", (projeto_id,)
         ).fetchone()
-    return _projeto_dict(row) if row else None
-
-
-def atualizar_projeto(
-    projeto_id: str,
-    user_id: int,
-    nome: str | None = None,
-    contexto: dict | str | None = None,
-    github_url: str | None = None,
-) -> dict | None:
-    projeto = buscar_projeto(projeto_id)
-    if not projeto or projeto["user_id"] != user_id:
-        return None
-    import json
-    novo_nome = nome if nome is not None else projeto["nome"]
-    novo_ctx = projeto.get("contexto")
-    if contexto is not None:
-        novo_ctx = contexto if isinstance(contexto, str) else json.dumps(contexto, ensure_ascii=False)
-    novo_gh = github_url if github_url is not None else projeto.get("github_url")
-    with _conexao() as conn:
-        conn.execute(
-            "UPDATE projetos SET nome = ?, contexto = ?, github_url = ? WHERE id = ?",
-            (novo_nome, novo_ctx, novo_gh, projeto_id),
-        )
-    return buscar_projeto(projeto_id)
+    return dict(row) if row else None
 
 
 # ── Reset de senha ────────────────────────────────────────────────────────────
 
 def criar_token_reset(user_id: int) -> str:
-    """Gera um token de reset válido por 30 minutos. Invalida tokens anteriores do mesmo usuário."""
+    """Gera um token de reset válido por 30 minutos. Invalida tokens anteriores."""
     from datetime import timedelta
     token = secrets.token_urlsafe(32)
     expira = (datetime.now() + timedelta(minutes=30)).isoformat()
     with _conexao() as conn:
-        # Invalida tokens anteriores não usados
         conn.execute(
             "UPDATE reset_senha SET usado = 1 WHERE user_id = ? AND usado = 0",
             (user_id,),
@@ -319,15 +380,3 @@ def consumir_token_reset(token: str, nova_senha: str) -> bool:
             (token,),
         )
     return True
-
-
-def _projeto_dict(row) -> dict:
-    import json
-    d = dict(row)
-    ctx = d.get("contexto")
-    if ctx and isinstance(ctx, str):
-        try:
-            d["contexto"] = json.loads(ctx)
-        except (json.JSONDecodeError, TypeError):
-            pass
-    return d
