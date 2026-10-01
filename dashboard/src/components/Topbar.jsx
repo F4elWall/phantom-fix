@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import logoImg from "../assets/logo.png";
-import { regenToken } from "../api";
+import { regenToken, scanGithub } from "../api";
 // --- [MODIFICAÇÃO]: Importado hook do tema ---
 import { useTheme } from "../App";
 
@@ -65,6 +65,90 @@ function TokenPopup({ token, onFechar }) {
   );
 }
 
+function GitCloneModal({ onFechar, onScanIniciado }) {
+  const [ghUrl,    setGhUrl]    = useState("");
+  const [ghToken,  setGhToken]  = useState("");
+  const [scanando, setScanando] = useState(false);
+  const [erro,     setErro]     = useState("");
+
+  async function handleSubmit() {
+    setErro("");
+    if (!ghUrl.trim() || !ghToken.trim()) {
+      setErro("Preencha a URL do repositório e o token GitHub.");
+      return;
+    }
+    setScanando(true);
+    try {
+      const clientToken = localStorage.getItem("user_token") || "";
+      const data = await scanGithub({
+        githubToken: ghToken.trim(),
+        repositorio: ghUrl.trim(),
+        clientToken,
+      });
+      onScanIniciado?.(data?.protocolo);
+      onFechar();
+    } catch (e) {
+      setErro(e.message || "Erro ao iniciar scan. Tente novamente.");
+    } finally {
+      setScanando(false);
+    }
+  }
+
+  return (
+    <div className="wlc-overlay" onClick={onFechar}>
+      <div className="wlc-popup" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <button className="wlc-popup-close" onClick={onFechar}>✕</button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" style={{ color: "var(--ecto)" }}>
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <h2 className="wlc-popup-titulo" style={{ margin: 0 }}>Nova análise via GitHub</h2>
+        </div>
+        <p className="wlc-popup-sub" style={{ marginBottom: 20 }}>
+          Use um token fine-grained com permissão de leitura.<br />
+          O Core clona o repositório e inicia a análise automaticamente.
+        </p>
+
+        <div className="nexus-campo" style={{ marginBottom: 12 }}>
+          <label className="nexus-label">URL do repositório</label>
+          <input
+            className="nexus-input"
+            type="url"
+            value={ghUrl}
+            onChange={(e) => setGhUrl(e.target.value)}
+            placeholder="https://github.com/org/repositorio"
+            autoFocus
+          />
+        </div>
+
+        <div className="nexus-campo" style={{ marginBottom: 16 }}>
+          <label className="nexus-label">Token de acesso GitHub</label>
+          <input
+            className="nexus-input"
+            type="text"
+            autoComplete="off"
+            value={ghToken}
+            onChange={(e) => setGhToken(e.target.value)}
+            placeholder="ghp_ ou github_pat_..."
+          />
+        </div>
+
+        {erro && <p className="nexus-erro" style={{ marginBottom: 12 }}>{erro}</p>}
+
+        <button
+          className="wlc-acessar-btn"
+          onClick={handleSubmit}
+          disabled={scanando}
+          style={{ width: "100%" }}
+        >
+          {scanando ? "Iniciando…" : "Iniciar análise"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Topbar({
   repositorio,
   processadoEm,
@@ -78,6 +162,7 @@ export default function Topbar({
   const rodando = scanState?.tipo === "rodando";
   const relatorioExecutivoNaoLido = scanState?.relatorioExecutivoNaoLido ?? false;
   const [dropdownAberto, setDropdownAberto] = useState(false);
+  const [gitCloneAberto, setGitCloneAberto] = useState(false);
   const [novoToken, setNovoToken] = useState(null);
   const [regenando, setRegenando] = useState(false);
   const dropdownRef = useRef(null);
@@ -121,6 +206,15 @@ export default function Topbar({
     <>
       {novoToken && (
         <TokenPopup token={novoToken} onFechar={() => setNovoToken(null)} />
+      )}
+
+      {gitCloneAberto && (
+        <GitCloneModal
+          onFechar={() => setGitCloneAberto(false)}
+          onScanIniciado={(protocolo) => {
+            if (protocolo && onAbrirPipeline) onAbrirPipeline(protocolo);
+          }}
+        />
       )}
 
       <header className="topbar">
@@ -176,6 +270,19 @@ export default function Topbar({
               Ver histórico de scans
             </button>
           )}
+
+          <button
+            type="button"
+            className="topbar-chip topbar-chip-btn"
+            onClick={() => setGitCloneAberto(true)}
+            title="Analisar novo repositório via GitHub"
+            disabled={rodando}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            Nova análise
+          </button>
         </div>
 
         <div className="topbar-actions">
