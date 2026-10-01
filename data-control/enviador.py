@@ -24,6 +24,7 @@ def enviar_repositorio(pasta: str, core_url: str, token: str):
     Chamado pelo main.py em thread separada.
     """
     pasta_path = Path(pasta)
+    core_url   = core_url.rstrip("/")   # evita "/api//scan"
 
     # ── 1. Valida ─────────────────────────────────────────────────────────────
     atualizar_status("Validando repositório...")
@@ -50,18 +51,30 @@ def enviar_repositorio(pasta: str, core_url: str, token: str):
             atualizar_status(f"Enviando... (tentativa {tentativa}/{TENTATIVAS_MAX})")
 
             with open(zip_path, "rb") as f:
+                # O Core espera token e repositorio como campos de FORM
+                # (mesmo formato do client/app.py), não como header.
                 resp = requests.post(
                     f"{core_url}/scan",
                     files={"arquivo": ("repositorio.zip", f, "application/zip")},
+                    data={
+                        "repositorio": pasta_path.name,
+                        "token":       token,
+                    },
                     headers={"Authorization": f"Bearer {token}"},
-                    timeout=120,
+                    timeout=300,
                 )
 
             if resp.status_code == 200:
                 sucesso = True
                 break
 
+            print(f"[enviador] HTTP {resp.status_code}: {resp.text[:500]}")
             atualizar_status(f"⚠ Tentativa {tentativa} falhou: HTTP {resp.status_code}")
+
+            # 4xx = erro do pedido (token inválido, payload errado, zip grande demais).
+            # Tentar de novo não resolve — aborta o retry.
+            if 400 <= resp.status_code < 500:
+                break
 
         except requests.exceptions.ConnectionError:
             atualizar_status(f"⚠ Tentativa {tentativa} falhou: sem conexão")
