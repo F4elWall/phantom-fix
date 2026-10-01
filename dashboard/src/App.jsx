@@ -211,105 +211,105 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ tema, toggleTema }}>
-    <NavContext.Provider value={navValue}>
-      {tela === "landing" && (
-        <Landing
-          onEntrar={() => setTela("auth")}
-          onCriarConta={() => setTela("signup")}
-        />
-      )}
-
-      {tela === "auth" && (
-        <Login
-          onLogin={onLogin}
-          onIrParaSignup={() => setTela("signup")}
-          onVoltar={() => setTela("landing")}
-          onEsqueciSenha={() => setTela("recuperar_senha")}
-        />
-      )}
-
-      {tela === "recuperar_senha" && (
-        <RecuperarSenha
-          resetToken={resetToken}
-          onVoltar={() => setTela("auth")}
-          onSucesso={() => setTela("auth")}
-        />
-      )}
-
-      {tela === "signup" && (
-        <SignUp
-          onCriouConta={onCriouConta}
-          onIrParaLogin={() => setTela("auth")}
-          onVoltar={() => setTela("landing")}
-        />
-      )}
-
-      {tela === "welcome" && (
-        <Welcome
-          usuario={usuarioAuth || {
-            token: localStorage.getItem("user_token") || "",
-            nome:  localStorage.getItem("user_nome")  || "Usuário",
-            client_linked: false,
-          }}
-          onAcessarDashboard={onAcessarDashboard}
-          onSair={sair}
-        />
-      )}
-
-      {tela === "relatorio_executivo" && relatorioExecutivo && (
-        <RelatorioExecutivoView
-          relatorio={relatorioExecutivo}
-          onAcessarDashboard={onAcessarDashboardCompleto}
-        />
-      )}
-
-      {tela === "pipeline" && protocoloPipeline && (
-        <div className={dashboardClass}>
-          <PipelineView
-            protocolo={protocoloPipeline}
-            scanState={scanStateComExecutivo}
-            spiritAberto={spiritAberto}
-            onToggleSpirit={() => setSpiritAberto((v) => !v)}
-            onVerHistorico={() => setTela("historico")}
-            onConcluido={onConcluidoPipeline}
-            onSair={sair}
-            onAbrirPipeline={abrirPipeline}
+      <NavContext.Provider value={navValue}>
+        {tela === "landing" && (
+          <Landing
+            onEntrar={() => setTela("auth")}
+            onCriarConta={() => setTela("signup")}
           />
-          {spiritAberto && <SpiritChat relatorio={relatorio} />}
-        </div>
-      )}
+        )}
 
-      {tela === "historico" && (
-        <div className={dashboardClass}>
-          <HistoricoView
-            scanState={scanStateComExecutivo}
-            spiritAberto={spiritAberto}
-            onToggleSpirit={() => setSpiritAberto((v) => !v)}
-            onAbrirPipeline={abrirPipeline}
-            onSelecionar={(rel) => { setRelatorio(rel); setTela("results"); }}
-            onVoltar={() => setTela(relatorio ? "results" : "home")}
+        {tela === "auth" && (
+          <Login
+            onLogin={onLogin}
+            onIrParaSignup={() => setTela("signup")}
+            onVoltar={() => setTela("landing")}
+            onEsqueciSenha={() => setTela("recuperar_senha")}
+          />
+        )}
+
+        {tela === "recuperar_senha" && (
+          <RecuperarSenha
+            resetToken={resetToken}
+            onVoltar={() => setTela("auth")}
+            onSucesso={() => setTela("auth")}
+          />
+        )}
+
+        {tela === "signup" && (
+          <SignUp
+            onCriouConta={onCriouConta}
+            onIrParaLogin={() => setTela("auth")}
+            onVoltar={() => setTela("landing")}
+          />
+        )}
+
+        {tela === "welcome" && (
+          <Welcome
+            usuario={usuarioAuth || {
+              token: localStorage.getItem("user_token") || "",
+              nome:  localStorage.getItem("user_nome")  || "Usuário",
+              client_linked: false,
+            }}
+            onAcessarDashboard={onAcessarDashboard}
             onSair={sair}
           />
-          {spiritAberto && <SpiritChat relatorio={relatorio} />}
-        </div>
-      )}
+        )}
 
-      {tela === "projeto" && (
-        <div className={dashboardClass}>
-          <ProjetoView
-            scanState={scanStateComExecutivo}
-            spiritAberto={spiritAberto}
-            onToggleSpirit={() => setSpiritAberto((v) => !v)}
-            onVerHistorico={() => setTela("historico")}
-            onAbrirPipeline={abrirPipeline}
-            onSair={sair}
-            onVoltar={voltarDoProjeto}
+        {tela === "relatorio_executivo" && relatorioExecutivo && (
+          <RelatorioExecutivoView
+            relatorio={relatorioExecutivo}
+            onAcessarDashboard={onAcessarDashboardCompleto}
           />
-          {spiritAberto && <SpiritChat relatorio={relatorio} />}
-        </div>
-      )}
+        )}
 
-{/* --- Home: PosturaView --- */}
+        {tela === "pipeline" && protocoloPipeline && (
+          <div className={dashboardClass}>
+            <PipelineView
+              protocolo={protocoloPipeline}
+              scanState={scanStateComExecutivo}
+              spiritAberto={spiritAberto}
+              onToggleSpirit={() => setSpiritAberto((v) => !v)}
+              onVerHistorico={() => setTela("historico")}
+              onConcluido={onConcluidoPipeline}
+              onSair={sair}
+              onAbrirPipeline={abrirPipeline}
+            />
+            {spiritAberto && <SpiritChat relatorio={relatorio} />}
+          </div>
+        )}
+
+        {tela === "historico" && (
+          <div className={dashboardClass}>
+            <HistoricoView
+              scanState={scanStateComExecutivo}
+              spiritAberto={spiritAberto}
+              onToggleSpirit={() => setSpiritAberto((v) => !v)}
+              onAbrirPipeline={abrirPipeline}
+              onSelecionar={(rel) => { setRelatorio(rel); setTela("results"); }}
+              onVoltar={() => setTela(relatorio ? "results" : "home")}
+              onSair={sair}
+            />
+            {spiritAberto && <SpiritChat relatorio={relatorio} />}
+          </div>
+        )}
+
+        {tela === "projeto" && (
+          <div className={dashboardClass}>
+            <ProjetoView
+              scanState={scanStateComExecutivo}
+              spiritAberto={spiritAberto}
+              onToggleSpirit={() => setSpiritAberto((v) => !v)}
+              onVerHistorico={() => setTela("historico")}
+              onAbrirPipeline={abrirPipeline}
+              onSair={sair}
+              onVoltar={voltarDoProjeto}
+            />
+            {spiritAberto && <SpiritChat relatorio={relatorio} />}
+          </div>
+        )}
+
+        {/* --- Home: PosturaView --- */}
         {(!relatorio || tela === "home") && !naTelaInicial &&
           tela !== "relatorio_executivo" && tela !== "pipeline" &&
           tela !== "historico" && tela !== "results" && tela !== "projeto" && (
@@ -323,24 +323,22 @@ export default function App() {
           </div>
         )}
 
-{tela === "results" && relatorio && (
-
-      {tela === "results" && relatorio && (
-        <div className={dashboardClass}>
-          <ResultsView
-            relatorio={relatorio}
-            scanState={scanStateComExecutivo}
-            spiritAberto={spiritAberto}
-            onToggleSpirit={() => setSpiritAberto((v) => !v)}
-            onVerHistorico={() => setTela("historico")}
-            onAbrirPipeline={abrirPipeline}
-            onSair={sair}
-            onVerRelatorioExecutivo={relatorioExecutivo ? () => setTela("relatorio_executivo") : null}
-          />
-          {spiritAberto && <SpiritChat relatorio={relatorio} />}
-        </div>
-      )}
-    </NavContext.Provider>
+        {tela === "results" && relatorio && (
+          <div className={dashboardClass}>
+            <ResultsView
+              relatorio={relatorio}
+              scanState={scanStateComExecutivo}
+              spiritAberto={spiritAberto}
+              onToggleSpirit={() => setSpiritAberto((v) => !v)}
+              onVerHistorico={() => setTela("historico")}
+              onAbrirPipeline={abrirPipeline}
+              onSair={sair}
+              onVerRelatorioExecutivo={relatorioExecutivo ? () => setTela("relatorio_executivo") : null}
+            />
+            {spiritAberto && <SpiritChat relatorio={relatorio} />}
+          </div>
+        )}
+      </NavContext.Provider>
     </ThemeContext.Provider>
   );
 }
