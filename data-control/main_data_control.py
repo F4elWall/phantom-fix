@@ -31,7 +31,7 @@ def acao_analisar_agora():
     token    = carregar_token()
     config   = carregar_config()
     pasta    = config.get("pasta_repo", "")
-    core_url = config.get("core_url", CORE_URL_PADRAO)
+    core_url = config.get("core_url", CORE_URL_PADRAO).rstrip("/")
 
     if not token:
         atualizar_status("⚠ Token não configurado")
@@ -65,7 +65,7 @@ def loop_polling():
         try:
             token    = carregar_token()
             config   = carregar_config()
-            core_url = config.get("core_url", CORE_URL_PADRAO)
+            core_url = config.get("core_url", CORE_URL_PADRAO).rstrip("/")
             pasta    = config.get("pasta_repo", "")
 
             if token and pasta:
