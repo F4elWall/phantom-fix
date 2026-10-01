@@ -93,7 +93,7 @@ cd "$ROOT/spirit"
 source venv/bin/activate
 export CORE_URL="http://localhost:8000"
 export OLLAMA_SPIRIT_KEY="$OLLAMA_SPIRIT_KEY"
-export SPIRIT_MODEL="nemotron-3-super"
+export SPIRIT_MODEL="nemotron-3-ultra"
 uvicorn spirit:app --host 0.0.0.0 --port 8001 \
   > "$LOG_DIR/spirit.log" 2>&1 &
 SPIRIT_PID=$!
