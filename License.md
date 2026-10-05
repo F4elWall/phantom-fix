@@ -12,9 +12,6 @@ QUALQUER GARANTIA**, ou a garantia implícita de **COMERCIABILIDADE**
 ou **ADEQUAÇÃO A UM DETERMINADO FIM**. Veja a GNU General Public License
 para mais detalhes.
 
-Você deve ter recebido uma cópia da GNU General Public License junto com
-este programa. Se não, veja <https://www.gnu.org/licenses/>.
-
 ---
 
 O texto integral da GPL-3.0 segue abaixo.
