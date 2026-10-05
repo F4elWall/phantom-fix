@@ -2,14 +2,13 @@
 
 Copyright (C) 2025–2026  
 Rafael Pedro, Bernardo Coroa, Giovanna Esmelardi, Gustavo Enrique  
-(e demais colaboradores listados no README)
 
 Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo
 sob os termos da **GNU General Public License versão 3**, conforme publicada
 pela Free Software Foundation.
 
 Este programa é distribuído na esperança de que seja útil, mas **SEM
-QUALQUER GARANTIA**; sem mesmo a garantia implícita de **COMERCIABILIDADE**
+QUALQUER GARANTIA**, ou a garantia implícita de **COMERCIABILIDADE**
 ou **ADEQUAÇÃO A UM DETERMINADO FIM**. Veja a GNU General Public License
 para mais detalhes.
 
