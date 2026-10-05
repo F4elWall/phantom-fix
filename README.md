@@ -225,10 +225,16 @@ Desenvolvido para o projeto Challenge, em parceria com a Pride e a FIAP
 | Rafael Pedro       | RM 573656 | [@F4elWall](https://github.com/F4elWall)         |
 | Bernardo Coroa     | RM 569261 | [@beracoroa](https://github.com/beracoroa)       |
 | Giovanna Esmelardi | RM 569667 | [@Giovana-gigi](https://github.com/Giovana-gigi) |
-| Gustavo Enrique    | RM 571529 |                                                  |
+| Gustavo Enrique    | RM 571529 | [@Gustavo](https://github.com/ghostt557)         |
 
 ---
 
 ## 📄 Licença
 
-Este projeto foi desenvolvido para fins acadêmicos.
+Este projeto é software livre sob a GNU General Public License v3.0 (GPL-3.0).
+
+Copyright (C) 2025–2026 Rafael Pedro, Bernardo Coroa, Giovanna Esmelardi e Gustavo Enrique.
+
+Você pode redistribuir e/ou modificar o PhantomFix sob os termos da GPL-3.0. O software é distribuído sem qualquer garantia. O texto completo da licença está em LICENSE.md.
+
+Projeto desenvolvido também para fins acadêmicos ( Projeto Challenge, Pride e FIAP).
