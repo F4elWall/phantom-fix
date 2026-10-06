@@ -77,7 +77,7 @@ chmod +x setup.sh && ./setup.sh
 O script (leva alguns minutos) faz tudo sozinho:
 
 1. Atualiza o sistema e instala as dependências básicas.
-2. Instala os **10 scanners**: Semgrep, OWASP ZAP (via snap), Gitleaks, Trivy, Syft, Grype, TruffleHog, Hadolint, Nuclei (com templates) e Spectral. O Checkov entra no venv do `data-control`.
+2. Instala os **11 scanners**: Semgrep, OWASP ZAP (via snap), Gitleaks, Trivy, Syft, Grype, TruffleHog, Hadolint, Nuclei (com templates), Spectral e Checkov (este último instalado no venv do `data-control`).
 3. Cria um ambiente virtual (`venv`) para cada serviço: `core`, `spirit`, `ghost`, `analyser` e `data-control`.
 4. Cria as pastas `resultados/`, `core/jobs/` e `logs/`.
 5. Gera o template de chaves em `~/.phantom-fix.env`.
