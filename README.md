@@ -48,7 +48,7 @@ Além disso, sentimos falta de um "algo a mais": não só um lugar para ver prob
 
 ### Plataforma
 - 🐙 **Scan direto de repositório GitHub** — informe a URL do repositório, sem precisar enviar arquivos
-- 🖥️ **Client desktop** — executável Windows para envio seguro de repositórios locais
+- 🖥️ **Agente desktop (Data-Control)** — aplicativo Windows na bandeja do sistema para envio seguro de repositórios locais, com token no cofre de credenciais do Windows
 - 👤 **Autenticação multi-tenant** — cada usuário vê apenas seus próprios scans
 - 📊 **Dashboard** — acompanhamento do pipeline, resultados com filtros por severidade, histórico, **postura** do projeto ao longo do tempo e chat com o Spirit
 - 📝 **Relatório executivo** — gerado pelo Spirit, em tela e em PDF
@@ -61,7 +61,7 @@ Além disso, sentimos falta de um "algo a mais": não só um lugar para ver prob
 > O PhantomFix é acessado pelo navegador e demanda pouquíssima configuração.
 
 ### 1. Crie sua conta
-Acesse [phantom-fix.vercel.app](https://phantom-fix-f4elwalls-projects.vercel.app) e clique em **Criar conta**. Preencha nome, e-mail e senha.
+Acesse [phantom-fix-f4elwalls-projects.vercel.app](https://phantom-fix-f4elwalls-projects.vercel.app) e clique em **Criar conta**. Preencha nome, e-mail e senha.
 
 ### 2. Descreva seu projeto (Nexus)
 Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisitos de compliance, estágio e objetivo. Se quiser análise dinâmica, informe também a **URL da aplicação**. Esse contexto faz a IA priorizar do jeito certo para o seu caso.
@@ -70,11 +70,12 @@ Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisi
 
 **Opção A: repositório GitHub.** Cole a URL do repositório (`https://github.com/usuario/repositorio`) e inicie a análise. Para repositórios privados, informe um token de acesso.
 
-**Opção B: Client desktop (Windows).**
+**Opção B: agente desktop (Windows).**
 1. Copie o **token único** exibido após criar a conta. Ele aparece **uma única vez**.
-2. Clique em **Download PhantomFix Client** e execute o `.exe`.
-3. Cole o token e clique em **Vincular conta**.
-4. Selecione a pasta do projeto e clique em **Iniciar Análise**.
+2. Clique em **Download PhantomFix Client** e execute o instalador.
+3. O PhantomFix fica na **bandeja do sistema**. Clique com o botão direito no ícone e abra **Configurações**.
+4. Cole o token e selecione a pasta do projeto.
+5. Clique no ícone e escolha **Analisar agora**. O agente também verifica a cada 60 s se há uma análise agendada e a envia sozinho.
 
 > **⚠️ Aviso de segurança**
 >
@@ -85,11 +86,18 @@ O Dashboard mostra o andamento do pipeline e, ao final, os resultados ordenados 
 
 ---
 
+## 📚 Documentação
+
+- **[Guia de Uso](docs/GUIA_DE_USO.md)** — criar conta, configurar o projeto, enviar código e ler os resultados
+- **[Guia de Implantação](docs/DEPLOY.md)** — como subir o PhantomFix em uma infraestrutura nova
+
+---
+
 ## 🏗️ Arquitetura
 
 ```
 ┌─────────────┐   token + zip    ┌───────────────────────────────────────────┐
-│   Client    │ ───────────────► │                   Core                    │
+│   Agente    │ ───────────────► │                   Core                    │
 │  (Windows)  │                  │  FastAPI · SQLite · Multi-tenant · Nexus  │
 └─────────────┘                  └──┬──────────┬──────────┬──────────┬───────┘
  URL do GitHub ────────────────────►│          │          │          │
@@ -122,7 +130,7 @@ O Dashboard mostra o andamento do pipeline e, ao final, os resultados ordenados 
 
 ### Fluxo do pipeline
 
-1. **Recebimento:** zip enviado pelo Client ou clone do repositório GitHub, com o contexto lido do Nexus
+1. **Recebimento:** zip enviado pelo agente desktop ou clone do repositório GitHub, com o contexto lido do Nexus
 2. **Scanner** (`data-control`): executa as ferramentas de análise
 3. **Analyser:** normaliza, correlaciona, enriquece com NVD/EPSS/KEV e analisa com IA
 4. **Grafo:** correlaciona achados entre ferramentas, monta os caminhos de ataque e calcula o PhantomScore
@@ -140,7 +148,7 @@ O Dashboard mostra o andamento do pipeline e, ao final, os resultados ordenados 
 | **OWASP ZAP** | Daemon do DAST, usado pelo scanner | 8080 |
 | **Dashboard** | Interface web React (Vite, em desenvolvimento) | 5173 |
 | **Data Control / Analyser / Grafo / Vault** | Módulos executados pelo Core | — |
-| **Client** | Executável desktop Windows | — |
+| **Agente desktop** (`data-control/`) | Aplicativo Windows na bandeja, envia repositórios locais | — |
 
 Os modelos de linguagem rodam no **Ollama Cloud** e podem ser trocados por variável de ambiente, de forma independente para cada serviço.
 
@@ -148,7 +156,7 @@ Os modelos de linguagem rodam no **Ollama Cloud** e podem ser trocados por vari�
 
 ## 🛠️ Executando por conta própria
 
-Requer uma VM Ubuntu/Debian.
+Requer uma VM Ubuntu/Debian x86_64. O passo a passo completo, com pré-requisitos, HTTPS e solução de problemas, está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. Resumo:
 
 ```bash
 git clone https://github.com/F4elWall/phantom-fix.git
@@ -156,7 +164,7 @@ cd phantom-fix
 chmod +x setup.sh && ./setup.sh     # instala scanners, dependências e venvs
 ```
 
-Defina as chaves antes de subir os serviços:
+O setup cria o arquivo `~/.phantom-fix.env`. Preencha as chaves nele antes de subir os serviços:
 
 ```bash
 export OLLAMA_ANALYSER_KEY="..."
@@ -170,12 +178,14 @@ Em seguida:
 ./start-all.sh      # sobe ZAP, Spirit, Ghost e Core, com logs unificados
 ```
 
+> O `start-all.sh` lê as chaves de `/home/coreuser/.phantom-fix.env`. Veja em [docs/DEPLOY.md](docs/DEPLOY.md) como adaptar para outro usuário.
+
 ### Principais variáveis de ambiente
 
 | Variável | Uso |
 |---|---|
 | `OLLAMA_ANALYSER_KEY` / `OLLAMA_GHOST_KEY` / `OLLAMA_SPIRIT_KEY` | Chaves do Ollama Cloud de cada serviço |
-| `OLLAMA_MODEL` / `GHOST_MODEL` / `SPIRIT_MODEL` | Modelo usado por Analyser, Ghost e Spirit |
+| `OLLAMA_MODEL` / `GHOST_MODEL` / `SPIRIT_MODEL` | Modelo usado por Analyser, Ghost e Spirit (definidos no `start-all.sh`) |
 | `EMBED_MODEL` | Modelo de embeddings do Spirit (padrão `all-MiniLM-L6-v2`) |
 | `NVD_API_KEY` | Opcional; acelera as consultas ao NVD |
 | `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Envio do relatório por e-mail |
@@ -205,11 +215,11 @@ phantom-fix/
 ├── ghost/              # Geração de correções
 ├── spirit/             # Assistente de compliance (RAG)
 │   └── legislacao/     # PDFs de referência (LGPD, ISO 27001, NIST CSF)
-├── data-control/       # Scanner (11 ferramentas) e agente desktop
+├── data-control/       # Scanner (11 ferramentas) e agente desktop (Windows)
 ├── vault/              # Gerador do vault Obsidian
 ├── database/           # SQLite, autenticação e projetos (Nexus)
-├── client/             # Client desktop
 ├── dashboard/          # Interface web React
+├── docs/               # Guia de implantação e guia de uso
 ├── setup.sh            # Instalação completa em uma VM nova
 └── start-all.sh        # Sobe todos os serviços
 ```
@@ -225,7 +235,7 @@ Desenvolvido para o projeto Challenge, em parceria com a Pride e a FIAP
 | Rafael Pedro       | RM 573656 | [@F4elWall](https://github.com/F4elWall)         |
 | Bernardo Coroa     | RM 569261 | [@beracoroa](https://github.com/beracoroa)       |
 | Giovanna Esmelardi | RM 569667 | [@Giovana-gigi](https://github.com/Giovana-gigi) |
-| Gustavo Enrique    | RM 571529 | [@Gustavo](https://github.com/ghostt557)         |
+| Gustavo Enrique    | RM 571529 | [@ghostt557](https://github.com/ghostt557)         |
 
 ---
 
@@ -235,6 +245,6 @@ Este projeto é software livre sob a GNU General Public License v3.0 (GPL-3.0).
 
 Copyright (C) 2025–2026 Rafael Pedro, Bernardo Coroa, Giovanna Esmelardi e Gustavo Enrique.
 
-Você pode redistribuir e/ou modificar o PhantomFix sob os termos da GPL-3.0. O software é distribuído sem qualquer garantia. O texto completo da licença está em LICENSE.md.
+Você pode redistribuir e/ou modificar o PhantomFix sob os termos da GPL-3.0. O software é distribuído sem qualquer garantia. O texto completo da licença está em [LICENSE.md](LICENSE.md).
 
-Projeto desenvolvido também para fins acadêmicos ( Projeto Challenge, Pride e FIAP).
+Projeto desenvolvido também para fins acadêmicos (Projeto Challenge, Pride e FIAP).
