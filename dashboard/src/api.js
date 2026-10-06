@@ -1,3 +1,8 @@
+/*# PhantomFix — Copyright (C) 2025–2026 Rafael Pedro, Bernardo Coroa,
+   # Giovanna Esmelardi, Gustavo Enrique
+   # SPDX-License-Identifier: GPL-3.0-or-later
+   # Licenciado sob a GNU GPL v3. Veja LICENSE.md na raiz do repositório.*/
+
 const CORE_URL = import.meta.env.VITE_CORE_URL || "http://localhost:8000";
 const SPIRIT_URL = import.meta.env.VITE_SPIRIT_URL || "http://localhost:8001";
 
