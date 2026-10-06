@@ -1,3 +1,8 @@
+   # PhantomFix — Copyright (C) 2025–2026 Rafael Pedro, Bernardo Coroa,
+   # Giovanna Esmelardi, Gustavo Enrique
+   # SPDX-License-Identifier: GPL-3.0-or-later
+   # Licenciado sob a GNU GPL v3. Veja LICENSE.md na raiz do repositório.
+
 """
 PhantomFix — Cliente
 Versão: 2.1
@@ -10,6 +15,8 @@ Duas telas:
 v2.1 — FIX: TelaAnalise agora usa CTkScrollableFrame internamente para que
 o botão "Iniciar Análise" nunca fique oculto fora da área visível,
 independente do tamanho da janela ou DPI da tela.
+
+#ATENÇÃO - DESABILITADO! Uso atual - data-control
 """
 
 import zipfile
