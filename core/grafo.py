@@ -1,3 +1,7 @@
+   # PhantomFix — Copyright (C) 2025–2026 Rafael Pedro, Bernardo Coroa,
+   # Giovanna Esmelardi, Gustavo Enrique
+   # SPDX-License-Identifier: GPL-3.0-or-later
+   # Licenciado sob a GNU GPL v3. Veja LICENSE.md na raiz do repositório.
 """
 PhantomFix — grafo.py
 Versão: 1.2.0
