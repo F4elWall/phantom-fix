@@ -113,6 +113,7 @@ export DASHBOARD_URL="https://seu-dominio.com"   # usado nos links dos e-mails
 | `DASHBOARD_URL` | URL pública do Dashboard (aparece nos e-mails) |
 | `NVD_API_KEY` | Opcional; acelera o NVD |
 | `SCANNER_TIMEOUT` / `ZAP_TIMEOUT` | Limites de tempo do scanner e do DAST, em segundos (padrão 7200 e 3600) |
+| `DAST_PERMITIR_REDE_PRIVADA` | Opcional. Com `1`, permite que o DAST teste endereços internos (`localhost`, `10.x`, `192.168.x`). Padrão: bloqueado, para o ZAP/Nuclei do servidor não atingirem a rede interna |
 | `ANALYSER_LIMITE` | `0` analisa todos os achados; `N` limita a N |
 | `ZAP_API_URL`, `GHOST_URL`, `SPIRIT_URL` | Não altere se tudo roda na mesma VM |
 
