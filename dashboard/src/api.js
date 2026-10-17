@@ -327,14 +327,15 @@ export async function baixarConfiguracoes() {
   return data;
 }
 
-export async function scanGithub({ githubToken, repositorio, clientToken }) {
+// A autenticação é a sessão do dashboard (header Authorization) — não depende do
+// instalável. githubToken só é necessário para repositórios privados.
+export async function scanGithub({ githubToken, repositorio }) {
   const resp = await fetch(`${CORE_URL}/scan/github`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({
-      token: githubToken,
       repositorio,
-      client_token: clientToken,
+      token: githubToken || null,
     }),
   });
   const data = await resp.json();
