@@ -1,6 +1,6 @@
 # 👻 PhantomFix — Guia de Uso
 
-Do primeiro acesso à leitura dos resultados. Se você ainda precisa instalar a plataforma, veja o [Guia de Implantação](DEPLOY.md).
+Do primeiro acesso à leitura dos resultados. Se você ainda precisa instalar a plataforma, veja o [Guia de Implantação](Deploy.md).
 
 > Licença: GPL v3. Veja [LICENSE.md](../LICENSE.md).
 
@@ -11,9 +11,11 @@ Do primeiro acesso à leitura dos resultados. Se você ainda precisa instalar a 
 1. Abra o Dashboard do PhantomFix no navegador.
 2. Na página inicial, clique em **Criar conta**.
 3. Preencha **nome**, **e-mail** e **senha** e confirme.
-4. Ao concluir, o sistema mostra o seu **token exclusivo**.
+4. Ao concluir, você cai na tela de **boas-vindas**, com dois caminhos:
+   - **Criar meu primeiro projeto** (recomendado): descreva o projeto e analise um repositório do GitHub direto pelo navegador, sem instalar nada.
+   - **Baixar o instalável** (opcional): leva ao agente desktop para Windows e ao seu **token exclusivo**.
 
-> ⚠️ **Copie o token agora.** Ele é exibido **uma única vez** e não pode ser recuperado. Se perder, gere um novo pelo menu superior; o token anterior é invalidado. Você só precisa dele para usar o agente desktop.
+> ⚠️ **O token só é necessário para o agente desktop.** Ele aparece ao abrir a tela do instalável. Se perder, gere um novo pelo menu superior; o token anterior é invalidado. Quem usa apenas o GitHub não precisa dele.
 
 ### Já tenho conta
 
@@ -38,7 +40,7 @@ O Nexus guarda o **contexto do seu projeto**. A IA usa essas informações para 
 | **Nome do projeto** | Ex.: *Portal de pedidos* |
 | **Stack** | Marque tudo o que o projeto usa (linguagens, frameworks, banco de dados…) |
 | **Ambiente** | Onde a aplicação roda (produção, homologação, nuvem…) |
-| **URL da aplicação** | *Opcional.* Habilita a análise dinâmica (DAST). **Em branco = o DAST é pulado** |
+| **URL da aplicação** | *Opcional.* Habilita a análise dinâmica (DAST). **Em branco = o DAST é pulado**. Precisa ser um endereço público (`https://...`); endereços internos como `localhost` ou `192.168.x.x` são recusados |
 | **Estágio** | Fase do projeto (desenvolvimento, pré-lançamento, produção…) |
 | **Dados sensíveis** | O que o sistema guarda ou processa (dados pessoais, financeiros, saúde…) |
 | **Conformidade exigida** | Opcional. Ex.: LGPD, ISO 27001, NIST CSF |
@@ -59,19 +61,19 @@ Escolha uma das duas formas.
 ### Opção A — Repositório GitHub
 
 1. Cole a URL do repositório, no formato `https://github.com/usuario/repositorio`.
-2. Se o repositório for **privado**, informe também um **token de acesso do GitHub** (`ghp_...` ou `github_pat_...`) com permissão de leitura.
+2. Se o repositório for **privado**, informe também um **token de acesso do GitHub** (`ghp_...` ou `github_pat_...`) com permissão de leitura. Para repositórios públicos, deixe o token em branco.
 3. Inicie a análise.
 
-Nenhum arquivo precisa ser enviado: o PhantomFix clona o repositório.
+Nenhum arquivo precisa ser enviado e **não é preciso instalar nada**: o PhantomFix clona o repositório.
 
 ### Opção B — Agente desktop (Windows)
 
 Indicado para código que só existe na sua máquina.
 
-1. Na tela de boas-vindas, clique em **Download PhantomFix Client** e execute o instalador.
+1. Na tela de boas-vindas, clique em **Ver o instalável**, depois em **Download PhantomFix Client**, e execute o instalador.
    > O executável não tem assinatura digital. O Windows ou o navegador podem exibir um aviso de segurança. Isso é esperado em um projeto acadêmico.
 2. O PhantomFix passa a rodar na **bandeja do sistema** (ao lado do relógio). Clique com o botão direito no ícone e abra **Configurações**.
-3. Cole o **token exclusivo** copiado no cadastro e selecione a **pasta do projeto**.
+3. Cole o **token exclusivo** (mostrado na tela do instalável) e selecione a **pasta do projeto**.
 4. Clique no ícone e escolha **Analisar agora**.
 
 O agente compacta a pasta (ignorando `.git`, `node_modules`, `.venv`, `dist` e `build`), valida o arquivo e o envia ao Core, com novas tentativas em caso de falha. O token fica guardado no cofre de credenciais do Windows. O agente também consulta o Core a cada 60 segundos: se houver uma análise agendada para você, ele envia o código sozinho. O status atual aparece no menu do ícone.
@@ -148,11 +150,11 @@ Exemplos de perguntas:
 
 ## 7. Perguntas frequentes
 
-**O DAST não rodou.** O campo *URL da aplicação* do Nexus estava em branco. Preencha e rode uma nova análise.
+**O DAST não rodou.** O campo *URL da aplicação* do Nexus estava em branco, ou apontava para um endereço interno (que o servidor não testa). Informe uma URL pública e rode uma nova análise.
 
 **Perdi o token do agente.** Gere um novo pelo menu superior. O anterior deixa de funcionar e o agente precisa ser reconfigurado com o novo token.
 
-**O e-mail com o relatório não chegou.** Confira a caixa de spam. Se você administra a instalação, veja a configuração de e-mail no [Guia de Implantação](DEPLOY.md).
+**O e-mail com o relatório não chegou.** Confira a caixa de spam. Se você administra a instalação, veja a configuração de e-mail no [Guia de Implantação](Deploy.md).
 
 **Outros usuários veem meus scans?** Não. A plataforma é multi-tenant: cada usuário vê apenas as próprias análises.
 
