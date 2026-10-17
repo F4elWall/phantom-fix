@@ -63,15 +63,21 @@ Além disso, sentimos falta de um "algo a mais": não só um lugar para ver prob
 ### 1. Crie sua conta
 Acesse [phantom-fix-f4elwalls-projects.vercel.app](https://phantom-fix-f4elwalls-projects.vercel.app) e clique em **Criar conta**. Preencha nome, e-mail e senha.
 
-### 2. Descreva seu projeto (Nexus)
-Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisitos de compliance, estágio e objetivo. Se quiser análise dinâmica, informe também a **URL da aplicação**. Esse contexto faz a IA priorizar do jeito certo para o seu caso.
+### 2. Escolha por onde começar
+Ao criar a conta você cai na tela de **boas-vindas**, com dois caminhos:
 
-### 3. Escolha como enviar o código
+- **Criar meu primeiro projeto** *(recomendado, sem instalar nada)*: descreva o projeto e analise um repositório do GitHub direto pelo navegador.
+- **Baixar o instalável** *(opcional)*: para analisar uma pasta local pelo agente desktop do Windows.
 
-**Opção A: repositório GitHub.** Cole a URL do repositório (`https://github.com/usuario/repositorio`) e inicie a análise. Para repositórios privados, informe um token de acesso.
+### 3. Descreva seu projeto (Nexus)
+Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisitos de compliance, estágio e objetivo. Se quiser análise dinâmica (DAST), informe também a **URL pública da aplicação** — endereços internos (`localhost`, `192.168.x.x`…) são recusados. Esse contexto faz a IA priorizar do jeito certo para o seu caso.
+
+### 4. Envie o código
+
+**Opção A: repositório GitHub (sem instalar nada).** Cole a URL do repositório (`https://github.com/usuario/repositorio`) e inicie a análise. O token de acesso só é necessário para repositórios **privados**.
 
 **Opção B: agente desktop (Windows).**
-1. Copie o **token único** exibido após criar a conta. Ele aparece **uma única vez**.
+1. Na tela de boas-vindas, abra **Ver o instalável** e copie o **token único**.
 2. Clique em **Download PhantomFix Client** e execute o instalador.
 3. O PhantomFix fica na **bandeja do sistema**. Clique com o botão direito no ícone e abra **Configurações**.
 4. Cole o token e selecione a pasta do projeto.
@@ -81,15 +87,15 @@ Na tela **Projeto**, informe stack, ambiente, tipos de dados sensíveis, requisi
 >
 > O PhantomFix é um projeto acadêmico e o executável **não possui assinatura digital (Code Signing Certificate)**. Por isso, o Windows, o Microsoft Defender SmartScreen ou o navegador podem exibir um aviso durante o download ou na primeira execução. Se você baixou o arquivo diretamente deste repositório ou do site oficial do projeto, esse comportamento é esperado.
 
-### 4. Acompanhe e aja
+### 5. Acompanhe e aja
 O Dashboard mostra o andamento do pipeline e, ao final, os resultados ordenados por PhantomScore, as correções sugeridas pelo Ghost, o relatório executivo e o vault para download. Converse com o Spirit para entender o impacto de cada falha.
 
 ---
 
 ## 📚 Documentação
 
-- **[Guia de Uso](docs/GUIA_DE_USO.md)** — criar conta, configurar o projeto, enviar código e ler os resultados
-- **[Guia de Implantação](docs/DEPLOY.md)** — como subir o PhantomFix em uma infraestrutura nova
+- **[Guia de Uso](docs/Guia%20de%20Uso.md)** — criar conta, configurar o projeto, enviar código e ler os resultados
+- **[Guia de Implantação](docs/Deploy.md)** — como subir o PhantomFix em uma infraestrutura nova
 
 ---
 
@@ -156,7 +162,7 @@ Os modelos de linguagem rodam no **Ollama Cloud** e podem ser trocados por vari�
 
 ## 🛠️ Executando por conta própria
 
-Requer uma VM Ubuntu/Debian x86_64. O passo a passo completo, com pré-requisitos, HTTPS e solução de problemas, está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. Resumo:
+Requer uma VM Ubuntu/Debian x86_64. O passo a passo completo, com pré-requisitos, HTTPS e solução de problemas, está em **[docs/DEPLOY.md](docs/Deploy.md)**. Resumo:
 
 ```bash
 git clone https://github.com/F4elWall/phantom-fix.git
@@ -178,7 +184,7 @@ Em seguida:
 ./start-all.sh      # sobe ZAP, Spirit, Ghost e Core, com logs unificados
 ```
 
-> O `start-all.sh` lê as chaves de `/home/coreuser/.phantom-fix.env`. Veja em [docs/DEPLOY.md](docs/DEPLOY.md) como adaptar para outro usuário.
+> O `start-all.sh` lê as chaves de `/home/coreuser/.phantom-fix.env`. Veja em [docs/DEPLOY.md](docs/Deploy.md) como adaptar para outro usuário.
 
 ### Principais variáveis de ambiente
 
@@ -190,6 +196,7 @@ Em seguida:
 | `NVD_API_KEY` | Opcional; acelera as consultas ao NVD |
 | `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Envio do relatório por e-mail |
 | `ZAP_API_URL` / `ZAP_TIMEOUT` | Endereço do ZAP e limite de tempo do DAST |
+| `DAST_PERMITIR_REDE_PRIVADA` | Opcional. Com `1`, permite que o DAST teste endereços internos (`localhost`, `10.x`, `192.168.x`). Padrão: bloqueado, para o ZAP/Nuclei do servidor não atingirem a rede interna |
 | `SCANNER_TIMEOUT` | Limite de tempo total do scanner |
 | `RESULTADOS_DIR` / `JOBS_DIR` | Onde ficam resultados e repositórios temporários |
 | `VITE_CORE_URL` / `VITE_SPIRIT_URL` | Endereços das APIs usados pelo Dashboard |
