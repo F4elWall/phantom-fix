@@ -61,9 +61,11 @@ export default function ProjetoView({
   onAbrirPipeline,
   onSair,
   onVoltar,
+  onProjetoSalvo,
 }) {
   const [carregando, setCarregando] = useState(true);
   const [temProjeto, setTemProjeto] = useState(false);
+  const [recemCriado, setRecemCriado] = useState(false);   // acabou de criar o 1º projeto
   const [form, setForm] = useState(FORM_VAZIO);
 
   const [salvando, setSalvando] = useState(false);
@@ -116,9 +118,20 @@ export default function ProjetoView({
         objetivo:        form.objetivo.trim()   || null,
         zap_url:         form.url.trim()        || null,
       });
+      const eraPrimeiroProjeto = !temProjeto;
       setTemProjeto(true);
       setSalvo(true);
-      setTimeout(() => { onVoltar?.(); }, 1000);
+      onProjetoSalvo?.();
+      if (eraPrimeiroProjeto) {
+        setRecemCriado(true);
+        // Primeiro projeto: fica na página e leva o usuário à análise logo abaixo.
+        setTimeout(() => {
+          document.getElementById("analise-github")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 300);
+      } else {
+        setRecemCriado(false);
+        setTimeout(() => { onVoltar?.(); }, 1000);
+      }
     } catch (e) {
       setErro(e.message || "Erro ao salvar. Tente novamente.");
     } finally {
@@ -128,14 +141,13 @@ export default function ProjetoView({
 
   async function handleScanGithub() {
     setErroScan("");
-    if (!ghUrl.trim() || !ghToken.trim()) {
-      setErroScan("Preencha a URL do repositório e o token GitHub.");
+    if (!ghUrl.trim()) {
+      setErroScan("Informe a URL do repositório.");
       return;
     }
     setScanando(true);
     try {
-      const clientToken = localStorage.getItem("user_token") || "";
-      const data = await scanGithub({ githubToken: ghToken.trim(), repositorio: ghUrl.trim(), clientToken });
+      const data = await scanGithub({ githubToken: ghToken.trim(), repositorio: ghUrl.trim() });
       onAbrirPipeline?.(data?.protocolo);
     } catch (e) {
       setErroScan(e.message || "Erro ao iniciar scan.");
@@ -290,12 +302,16 @@ export default function ProjetoView({
                   >
                     Cancelar
                   </button>
-                  {salvo && <span className="nexus-salvo">✓ Salvo!</span>}
+                  {salvo && (
+                    <span className="nexus-salvo">
+                      ✓ Salvo!{recemCriado && " Agora inicie sua primeira análise abaixo."}
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* ── Análise via GitHub ──────────────────────────────────── */}
-              <h2 className="projeto-secao-titulo">
+              <h2 className="projeto-secao-titulo" id="analise-github">
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
                 </svg>
@@ -303,8 +319,9 @@ export default function ProjetoView({
               </h2>
 
               <p className="nexus-hint" style={{ marginBottom: 16 }}>
-                Use um token fine-grained com permissão de leitura. O Core clona o repositório
-                e inicia a análise automaticamente com o contexto do projeto acima.
+                Cole a URL do repositório e o Core clona e analisa com o contexto do projeto acima.
+                Para repositórios <strong>privados</strong>, informe também um token fine-grained
+                com permissão de leitura.
               </p>
 
               <div className="nexus-campo">
@@ -319,10 +336,13 @@ export default function ProjetoView({
               </div>
 
               <div className="nexus-campo">
-                <label className="nexus-label">Token de acesso GitHub</label>
+                <label className="nexus-label">
+                  Token de acesso GitHub{" "}
+                  <span className="nexus-label-opt">(só para repositórios privados)</span>
+                </label>
                 <input
                   className="nexus-input"
-                  type="text"
+                  type="password"
                   autoComplete="off"
                   value={ghToken}
                   onChange={(e) => setGhToken(e.target.value)}
