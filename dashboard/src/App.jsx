@@ -10,6 +10,7 @@ import Landing from "./components/Landing";
 import Login from "./components/Login";
 import SignUp from "./components/SignUp";
 import Welcome from "./components/Welcome";
+import Onboarding from "./components/Onboarding";
 import PosturaView from "./components/PosturaView";
 import ResultsView from "./components/ResultsView";
 import SpiritChat from "./components/SpiritChat";
@@ -19,7 +20,7 @@ import RelatorioExecutivoView from "./components/RelatorioExecutivoView";
 import RecuperarSenha from "./components/RecuperarSenha";
 import ProjetoView from "./components/ProjetoView";
 import "./App.css";
-import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo } from "./api";
+import { detectarScanAtivo, buscarRelatorio, buscarRelatorioExecutivo, buscarProjeto } from "./api";
 
 // --- ThemeContext ---
 const ThemeContext = createContext();
@@ -34,7 +35,8 @@ export const useNav = () => useContext(NavContext);
  *  landing          → página inicial
  *  auth             → login
  *  signup           → criar conta
- *  welcome          → pós-signup: exibe token + instrução de vínculo
+ *  onboarding       → pós-signup: criar o 1º projeto (GitHub) ou, se quiser, baixar o instalável
+ *  welcome          → instalável (opcional): token + instrução de vínculo do Client
  *  home             → PosturaView (postura histórica de segurança)
  *  pipeline         → acompanhar scan em andamento
  *  relatorio_executivo → relatório executivo gerado pelo Spirit
@@ -45,6 +47,15 @@ export const useNav = () => useContext(NavContext);
 
 function sessaoSalva() {
   return !!localStorage.getItem("session_token");
+}
+
+// Boas-vindas: aparece até o usuário criar o 1º projeto, abrir o dashboard ou vincular o Client.
+function onboardingPendente() {
+  return localStorage.getItem("onboarding_done") !== "true";
+}
+
+function concluirOnboarding() {
+  localStorage.setItem("onboarding_done", "true");
 }
 
 function lerResetToken() {
@@ -78,7 +89,7 @@ export default function App() {
   const [tela, setTela] = useState(
     resetToken ? "recuperar_senha" :
     !dadosSalvos ? "landing" :
-    !dadosSalvos.client_linked ? "welcome" : "home"
+    (dadosSalvos.client_linked || !onboardingPendente()) ? "home" : "onboarding"
   );
   const [usuarioAuth, setUsuarioAuth] = useState(dadosSalvos);
   const [relatorio, setRelatorio] = useState(null);
@@ -91,7 +102,7 @@ export default function App() {
   const [telaAntesDoProjeto, setTelaAntesDoProjeto] = useState(null);
 
   // ── Polling de scan ativo ─────────────────────────────────────────────────
-  const logado = !["auth", "signup", "welcome", "landing"].includes(tela);
+  const logado = !["auth", "signup", "onboarding", "welcome", "landing"].includes(tela);
 
   useEffect(() => {
     if (!logado) return;
@@ -139,6 +150,7 @@ export default function App() {
     localStorage.removeItem("user_nome");
     localStorage.removeItem("user_token");
     localStorage.removeItem("client_linked");
+    localStorage.removeItem("onboarding_done");
     setRelatorio(null);
     setRelatorioExecutivo(null);
     setProtocoloPipeline(null);
@@ -146,19 +158,35 @@ export default function App() {
     setTela("landing");
   }
 
-  function onLogin(dados) {
+  // Quem já vinculou o Client ou já tem projeto vai direto ao dashboard;
+  // quem ainda não tem nada vê as boas-vindas (e não fica preso a elas).
+  async function onLogin(dados) {
     setUsuarioAuth(dados);
     localStorage.setItem("client_linked", dados.client_linked ? "true" : "false");
-    setTela(dados.client_linked ? "home" : "welcome");
+
+    let temProjeto = false;
+    if (!dados.client_linked) {
+      try { temProjeto = !!(await buscarProjeto()); } catch { /* segue para o onboarding */ }
+    }
+
+    if (dados.client_linked || temProjeto) {
+      concluirOnboarding();
+      setTela("home");
+    } else {
+      localStorage.removeItem("onboarding_done");
+      setTela("onboarding");
+    }
   }
 
   function onCriouConta(dados) {
     setUsuarioAuth(dados);
     localStorage.setItem("client_linked", "false");
-    setTela("welcome");
+    localStorage.removeItem("onboarding_done");
+    setTela("onboarding");
   }
 
   function onAcessarDashboard() {
+    concluirOnboarding();
     setTela("home");
   }
 
@@ -210,7 +238,7 @@ export default function App() {
   // ── Roteamento ────────────────────────────────────────────────────────────
   const scanStateComExecutivo = { ...scanState, relatorioExecutivoNaoLido };
   const dashboardClass = `dashboard ${spiritAberto ? "" : "spirit-recolhido"}`;
-  const naTelaInicial  = ["landing", "auth", "signup", "welcome"].includes(tela);
+  const naTelaInicial  = ["landing", "auth", "signup", "onboarding", "welcome"].includes(tela);
 
   const navValue = { irParaProjeto: abrirProjeto };
 
@@ -249,6 +277,16 @@ export default function App() {
           />
         )}
 
+        {tela === "onboarding" && (
+          <Onboarding
+            nome={usuarioAuth?.nome || localStorage.getItem("user_nome") || ""}
+            onCriarProjeto={abrirProjeto}
+            onInstalavel={() => setTela("welcome")}
+            onIrDashboard={onAcessarDashboard}
+            onSair={sair}
+          />
+        )}
+
         {tela === "welcome" && (
           <Welcome
             usuario={usuarioAuth || {
@@ -257,6 +295,7 @@ export default function App() {
               client_linked: false,
             }}
             onAcessarDashboard={onAcessarDashboard}
+            onVoltar={() => setTela("onboarding")}
             onSair={sair}
           />
         )}
@@ -309,6 +348,7 @@ export default function App() {
               onAbrirPipeline={abrirPipeline}
               onSair={sair}
               onVoltar={voltarDoProjeto}
+              onProjetoSalvo={concluirOnboarding}
             />
             {spiritAberto && <SpiritChat relatorio={relatorio} />}
           </div>
