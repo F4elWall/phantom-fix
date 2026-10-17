@@ -56,17 +56,42 @@ if not PASTA.exists():
     print(f"Pasta não encontrada: {PASTA}")
     sys.exit(1)
 
-# ── Lê scan.config.json (opcional) ───────────────────────────────────────────
-config_path = PASTA / "scan.config.json"
-url_alvo    = None
+# ── URL-alvo do DAST ─────────────────────────────────────────────────────────
+def resolver_url_dast(pasta: Path) -> str | None:
+    """
+    Ordem de prioridade:
+      1. variável DAST_URL — o Core a define sempre (vazia = sem DAST) já com a URL
+         do Nexus validada; quando presente, é a única fonte.
+      2. scan.config.json            (chaves "url" ou "zap_url")
+      3. configuracoes_scan.json     (chaves "zap_url" ou "url")
+    2 e 3 existem para uso standalone do scanner, fora do Core.
+    """
+    if "DAST_URL" in os.environ:
+        return os.environ["DAST_URL"].strip() or None
 
-if config_path.exists():
-    try:
-        config   = json.loads(config_path.read_text(encoding="utf-8"))
-        url_alvo = config.get("url")
-        print(f"Config encontrado. URL alvo: {url_alvo or 'não informada'}")
-    except json.JSONDecodeError:
-        print("scan.config.json inválido — ignorando")
+    for nome, chaves in (
+        ("scan.config.json",        ("url", "zap_url")),
+        ("configuracoes_scan.json", ("zap_url", "url")),
+    ):
+        caminho = pasta / nome
+        if not caminho.exists():
+            continue
+        try:
+            dados = json.loads(caminho.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print(f"{nome} inválido — ignorando")
+            continue
+        if not isinstance(dados, dict):
+            continue
+        for chave in chaves:
+            valor = dados.get(chave)
+            if isinstance(valor, str) and valor.strip():
+                return valor.strip()
+    return None
+
+
+url_alvo = resolver_url_dast(PASTA)
+print(f"URL alvo do DAST: {url_alvo or 'não informada'}")
 
 vulnerabilidades = []
 
@@ -200,7 +225,7 @@ if url_alvo:
 
     print(f"  → {contador_zap} achados")
 else:
-    print("  Sem URL no config — pulando DAST.")
+    print("  Sem URL do DAST (defina a URL da aplicação no Nexus) — pulando ZAP.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PARTE 3 — GITLEAKS (Secrets)
@@ -711,7 +736,7 @@ if url_alvo:
     finally:
         nuclei_path.unlink(missing_ok=True)
 else:
-    print("  Sem URL no config — pulando Nuclei.")
+    print("  Sem URL do DAST (defina a URL da aplicação no Nexus) — pulando Nuclei.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
