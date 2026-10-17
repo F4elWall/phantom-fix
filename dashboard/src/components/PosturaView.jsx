@@ -221,8 +221,9 @@ export default function PosturaView({
             <img src={logo} alt="PhantomFix" className="postura-vazio-logo" />
             <h2>Nenhuma análise ainda</h2>
             <p className="postura-vazio-desc">
-              Envie um repositório pelo Client desktop e sua postura de segurança
-              aparecerá aqui automaticamente.
+              Crie seu projeto e analise um repositório do GitHub (ou envie uma pasta
+              local pelo Client desktop) e sua postura de segurança aparecerá aqui
+              automaticamente.
             </p>
             {onConfigurarProjeto && (
               <button
