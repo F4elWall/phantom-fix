@@ -52,7 +52,7 @@ function Select({ campo, valor, onChange }) {
   );
 }
 
-export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProjeto }) {
+export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProjeto, onVoltar }) {
   const token = usuario?.token || localStorage.getItem("user_token") || "";
 
   // ── Estado geral ────────────────────────────────────────────────────────────
@@ -179,8 +179,8 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
 
   async function handleScanGithub() {
     setErroScan("");
-    if (!ghUrl.trim() || !ghToken.trim()) {
-      setErroScan("Preencha a URL do repositório e o token GitHub.");
+    if (!ghUrl.trim()) {
+      setErroScan("Informe a URL do repositório.");
       return;
     }
     setScanando(true);
@@ -188,7 +188,6 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
       await scanGithub({
         githubToken: ghToken.trim(),
         repositorio: ghUrl.trim(),
-        clientToken: tokenAtual,
       });
       setScanIniciado(true);
     } catch (e) {
@@ -247,6 +246,11 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
             <img src={logo} alt="" />
             <span>Phantom<strong>Fix</strong></span>
           </div>
+          {onVoltar && (
+            <button className="wlc-step-tab" onClick={onVoltar} title="Voltar às boas-vindas">
+              ← Voltar
+            </button>
+          )}
           {/* Navegação entre passos */}
           <div className="wlc-topbar-steps">
             {[
@@ -395,8 +399,9 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
                   Analisar via GitHub
                 </h3>
                 <p className="nexus-hint">
-                  Use um token fine-grained com permissão de leitura. O Core clona
-                  o repositório e inicia a análise automaticamente.
+                  Cole a URL do repositório. Para repositórios privados, informe também
+                  um token fine-grained com permissão de leitura. O Core clona o
+                  repositório e inicia a análise automaticamente.
                 </p>
 
                 <div className="nexus-campo">
@@ -411,10 +416,13 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
                 </div>
 
                 <div className="nexus-campo">
-                  <label className="nexus-label">Token de acesso GitHub</label>
+                  <label className="nexus-label">
+                    Token de acesso GitHub{" "}
+                    <span className="nexus-label-opt">(só para repositórios privados)</span>
+                  </label>
                   <input
                     className="nexus-input"
-                    type="text"
+                    type="password"
                     autoComplete="off"
                     value={ghToken}
                     onChange={e => setGhToken(e.target.value)}
@@ -465,10 +473,10 @@ export default function Welcome({ usuario, onAcessarDashboard, onConfigurarProje
                 <p className="wlc-bem-vindo-label">Bem-vindo ao</p>
                 <h1 className="wlc-hero-titulo">PhantomFix!</h1>
                 <p className="wlc-hero-desc">
-                  Sua conta foi criada com sucesso. Antes de iniciar sua primeira análise,
-                  vincule o{" "}
-                  <span className="wlc-destaque">PhantomFix Client</span> à sua conta
-                  usando seu token único.
+                  Prefere analisar uma pasta do seu computador? Instale o{" "}
+                  <span className="wlc-destaque">PhantomFix Client</span> e vincule-o à
+                  sua conta usando seu token único. É opcional: você também pode
+                  analisar repositórios direto pelo GitHub, sem instalar nada.
                 </p>
                 <div className="wlc-seguranca-card">
                   <div className="wlc-seguranca-icon">
