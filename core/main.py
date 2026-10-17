@@ -49,6 +49,7 @@ from grafo import (
 sys.path.append(str(Path(__file__).parent.parent))
 from database import db
 from zip_validator import validar_e_extrair_zip, ZipValidationError
+from validacao import normalizar_url_dast, validar_repo_github
 from vault.vault_obsidian import gerar_vault
 
 app = FastAPI(title="PhantomFix Core", version="0.8.0")
@@ -757,33 +758,40 @@ async def receber_zip(
 
 # ── Endpoint GitHub ────────────────────────────────────────────────────────────
 class ScanGithubBody(BaseModel):
-    token:            str            # Personal Access Token do GitHub
-    repositorio:      str            # https://github.com/org/repo
-    client_token:     str            # token do usuário no PhantomFix
+    repositorio:      str                  # https://github.com/org/repo
+    token:            str | None = None    # PAT do GitHub — só para repositórios privados
+    client_token:     str | None = None    # legado: token do instalável (a sessão é preferida)
     contexto_projeto: str | None = None
 
 
 @app.post("/scan/github")
-def receber_github(background: BackgroundTasks, body: ScanGithubBody):
-    usuario = db.buscar_usuario_por_token(body.client_token)
+def receber_github(
+    background: BackgroundTasks,
+    body: ScanGithubBody,
+    authorization: str = Header(None),
+):
+    # Autenticação: sessão do dashboard (fluxo normal, sem instalável).
+    # O client_token no corpo continua aceito apenas por compatibilidade.
+    usuario = None
+    if authorization and authorization.startswith("Bearer "):
+        usuario = db.buscar_sessao(authorization.split(" ", 1)[1])
+    if not usuario and body.client_token:
+        usuario = db.buscar_usuario_por_token(body.client_token)
     if not usuario:
-        raise HTTPException(status_code=403, detail="Token inválido")
+        raise HTTPException(status_code=401, detail="Não autenticado")
 
-    # Validação básica da URL antes de enfileirar
-    if not body.repositorio.strip().startswith("https://github.com/"):
-        raise HTTPException(
-            status_code=400,
-            detail="URL inválida. Use o formato https://github.com/usuario/repositorio",
-        )
+    try:
+        repositorio = validar_repo_github(body.repositorio)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"URL inválida. {e}")
 
-    if not body.token.strip():
-        raise HTTPException(status_code=400, detail="Token GitHub não pode ser vazio")
+    github_token = (body.token or "").strip()
 
     user_id   = usuario["id"]
     protocolo = str(uuid.uuid4())[:8]
     _status_jobs[protocolo] = {
         "status":      "recebido",
-        "repositorio": body.repositorio,
+        "repositorio": repositorio,
         "user_id":     user_id,
         "origem":      "github",
     }
@@ -791,16 +799,16 @@ def receber_github(background: BackgroundTasks, body: ScanGithubBody):
     pasta_job = JOBS_DIR / str(user_id) / protocolo
     pasta_job.mkdir(parents=True, exist_ok=True)
 
-    print(f"[{protocolo}] user={user_id} github={body.repositorio}")
+    print(f"[{protocolo}] user={user_id} github={repositorio} privado={'sim' if github_token else 'nao'}")
 
     background.add_task(
         _preparar_e_executar_github,
         user_id, protocolo, pasta_job,
-        body.token.strip(), body.repositorio.strip(),
+        github_token, repositorio,
         body.contexto_projeto, usuario["email"], usuario["nome"],
     )
 
-    return {"status": "recebido", "protocolo": protocolo, "repositorio": body.repositorio}
+    return {"status": "recebido", "protocolo": protocolo, "repositorio": repositorio}
 
 
 @app.get("/scan/ativo")
@@ -873,25 +881,16 @@ def _preparar_e_executar_github(
     _status_jobs[protocolo]["status"] = "clonando"
     pasta_extraida = pasta_job / "repo"
 
-    # Monta URL autenticada: https://<token>@github.com/org/repo.git
+    # Valida a URL (host exato github.com) e injeta o token só se houver
+    # (repositórios públicos são clonados sem credencial).
     try:
-        from urllib.parse import urlparse, urlunparse
-        parsed = urlparse(github_url.strip())
-
-        # Aceita apenas github.com
-        host = parsed.hostname or ""
-        if "github.com" not in host:
-            raise ValueError(f"Host não permitido: {host!r}. Apenas github.com é suportado.")
-
-        # Garante scheme https
-        if parsed.scheme not in ("https", "http"):
-            raise ValueError("A URL do repositório deve usar HTTPS.")
-
-        # Injeta token como user info
-        url_autenticada = urlunparse(parsed._replace(
-            scheme="https",
-            netloc=f"{github_token}@{parsed.hostname}{':' + str(parsed.port) if parsed.port else ''}"
-        ))
+        url_limpa = validar_repo_github(github_url)
+        if github_token:
+            url_autenticada = url_limpa.replace(
+                "https://github.com/", f"https://{github_token}@github.com/", 1
+            )
+        else:
+            url_autenticada = url_limpa
     except ValueError as e:
         _status_jobs[protocolo]["status"] = "erro"
         _status_jobs[protocolo]["detalhe"] = f"URL inválida: {e}"
@@ -924,12 +923,21 @@ def _preparar_e_executar_github(
 
     if proc.returncode != 0:
         stderr = proc.stderr.strip()
+        if github_token:
+            stderr = stderr.replace(github_token, "***")   # nunca logar o token
 
         # Mapeia erros comuns do git para mensagens legíveis
         if "Repository not found" in stderr or "not found" in stderr.lower():
-            detalhe = "Repositório não encontrado. Verifique a URL."
+            detalhe = (
+                "Repositório não encontrado. Verifique a URL"
+                + ("." if github_token else " — se for privado, informe um token de acesso.")
+            )
         elif "Authentication failed" in stderr or "could not read Username" in stderr:
-            detalhe = "Autenticação falhou. Verifique o token de acesso."
+            detalhe = (
+                "Autenticação falhou. Verifique o token de acesso."
+                if github_token else
+                "Este repositório exige autenticação. Informe um token de acesso."
+            )
         elif "not have permission" in stderr or "403" in stderr:
             detalhe = "Sem permissão de acesso ao repositório."
         else:
@@ -945,6 +953,45 @@ def _preparar_e_executar_github(
         user_id, protocolo, pasta_job, pasta_extraida,
         github_url, contexto_projeto, email_usuario, nome_usuario,
     )
+
+
+def _resolver_url_dast(pasta_extraida: Path, contexto, protocolo: str) -> str | None:
+    """
+    Descobre a URL-alvo do DAST, validada. Ordem de prioridade:
+      1. contexto do projeto (configuracoes_scan.json do zip → Nexus no banco)
+      2. scan.config.json na raiz do repositório (legado)
+    Uma URL inválida/interna é ignorada com aviso — nunca derruba o pipeline.
+    """
+    candidatas: list[tuple[str, str | None]] = []
+
+    if isinstance(contexto, dict):
+        candidatas.append(("contexto do projeto", contexto.get("zap_url") or contexto.get("url")))
+
+    cfg = pasta_extraida / "scan.config.json"
+    if cfg.exists():
+        try:
+            dados = json.loads(cfg.read_text(encoding="utf-8"))
+            if isinstance(dados, dict):
+                candidatas.append(("scan.config.json", dados.get("url") or dados.get("zap_url")))
+        except Exception:
+            print(f"[{protocolo}] ⚠ scan.config.json inválido — ignorando")
+
+    for origem, bruta in candidatas:
+        if not bruta:
+            continue
+        try:
+            url = normalizar_url_dast(bruta, resolver_dns=True)
+        except ValueError as e:
+            aviso = f"URL do DAST ({origem}) ignorada: {e}"
+            print(f"[{protocolo}] ⚠ {aviso}")
+            _status_jobs[protocolo]["aviso_dast"] = aviso
+            continue
+        if url:
+            print(f"[{protocolo}] DAST ativo → {url} (origem: {origem})")
+            return url
+
+    print(f"[{protocolo}] Sem URL de DAST — ZAP e Nuclei serão pulados")
+    return None
 
 
 def pipeline_completo(
@@ -999,10 +1046,15 @@ def pipeline_completo(
         _status_jobs[protocolo]["status"] = "escaneando"
         arquivo_findings = pasta_resultado / "findings.json"
 
+        # URL do DAST: Nexus (banco) / configuracoes_scan.json do zip / scan.config.json.
+        # É entregue ao scanner por variável de ambiente (sempre definida: vazia = sem DAST).
+        dast_url = _resolver_url_dast(pasta_extraida, contexto_padronizado, protocolo)
+
         print(f"[{protocolo}] Acionando scanner.py...")
         proc_scanner = subprocess.run(
             [SCANNER_PYTHON, SCANNER_PATH, str(pasta_extraida), str(arquivo_findings)],
             capture_output=True, text=True, timeout=SCANNER_TIMEOUT,
+            env={**os.environ, "DAST_URL": dast_url or ""},
         )
         print(f"[{protocolo}] --- scanner.py ---")
         print(proc_scanner.stdout)
@@ -1438,16 +1490,24 @@ def get_projeto(usuario: dict = Depends(usuario_autenticado)):
 @app.post("/projeto")
 def salvar_projeto(body: ProjetoBody, usuario: dict = Depends(usuario_autenticado)):
     """Cria ou atualiza o projeto do usuário (upsert por user_id)."""
+    nome = (body.nome or "").strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome do projeto é obrigatório")
+    try:
+        zap_url = normalizar_url_dast(body.zap_url)   # None se vazio; recusa destinos internos
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"URL da aplicação inválida: {e}")
+
     projeto = db.salvar_projeto_usuario(
         user_id         = usuario["id"],
-        nome            = body.nome,
+        nome            = nome,
         stack           = body.stack,
         ambiente        = body.ambiente,
         dados_sensiveis = body.dados_sensiveis,
         compliance      = body.compliance,
         estagio         = body.estagio,
         objetivo        = body.objetivo,
-        zap_url         = body.zap_url or None,
+        zap_url         = zap_url,
     )
     return projeto
  
